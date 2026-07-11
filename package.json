@@ -1,0 +1,60 @@
+{
+  "name": "is-fast-internet",
+  "version": "1.0.0",
+  "description": "Tiny zero-dependency browser check for fast internet. Races geo-diverse probe domains so it works in China, Russia, Iran, and Turkmenistan.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okasi/is-fast-internet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/okasi/is-fast-internet/issues"
+  },
+  "homepage": "https://github.com/okasi/is-fast-internet#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test",
+    "prepublishOnly": "npm run typecheck && npm run test"
+  },
+  "keywords": [
+    "internet",
+    "connection",
+    "speed",
+    "latency",
+    "network",
+    "browser",
+    "offline",
+    "china",
+    "russia",
+    "iran",
+    "censorship"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  }
+}
