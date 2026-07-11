@@ -1,25 +1,21 @@
-# is-fast-internet
+# ⚡ is-fast-internet
 
-Tiny, zero-dependency browser check: is the user's connection fast?
+**Censorship-proof ⚡ lightning-fast internet detection that just works.** 🌍🛡️
 
-It races tiny network requests against **geo-diverse domains**, so it gives
-a correct answer even behind national firewalls — including in **China**,
-**Russia**, **Iran**, and **Turkmenistan**. The first probe to respond
-decides the result; blocked domains simply lose the race instead of hanging
-the check. Google is deliberately excluded — it's blocked in China and
-unreliable in Russia, making it a poor fit for a library whose whole point
-is working in those places.
+Zero dependencies. Microscopic bundle. Delivers an accurate answer **even behind the Great Firewall, across Russia, Iran, and Turkmenistan**.
 
-Only a small global probe set fires by default. Region-specific probes
-(Baidu/Alibaba, VK, Aparat/Digikala, Turkmenportal) are added automatically
-based on the browser's timezone
-(`Intl.DateTimeFormat().resolvedOptions().timeZone`), so a visitor in
-`America/New_York` never fires a request at Baidu, and a visitor in
-`Asia/Shanghai` gets it added to the race. Yandex, Cloudflare, and Akamai
-are in the always-on global set rather than timezone-gated — Yandex because
-it has real usage outside Russia/CIS too (e.g. in Turkiye), and Cloudflare/
-Akamai because they're major CDN operators with edge presence spanning most
-of the world.
+It races tiny probes against the world's smartest geo-diverse domains. Whichever responds first wins — blocked domains simply lose the race instead of hanging your app. Google is **intentionally excluded** (it's blocked or unreliable exactly where this library shines).
+
+### ✨ Why it's awesome
+
+- ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
+- 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
+- 🗺️ **9 global + 8 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai + local heroes
+- 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
+- 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
+- ✅ Callback fires **exactly once** — always, even on complete blockage or timeout
+
+The global set is small by design. Region-specific probes are added automatically based on the visitor's browser timezone, so people in New York never hit Baidu and visitors in Shanghai get the China-optimized probes.
 
 ## Install
 

@@ -1,7 +1,7 @@
 {
   "name": "is-fast-internet",
   "version": "1.0.0",
-  "description": "Tiny zero-dependency browser check for fast internet. Races geo-diverse probe domains so it works in China, Russia, Iran, and Turkmenistan.",
+  "description": "⚡🌍 Tiny zero-dependency browser check for fast internet. 🚀 Races geo-diverse probes so it works behind firewalls in China 🇨🇳, Russia 🇷🇺, Iran 🇮🇷 & Turkmenistan 🇹🇲.",
   "type": "module",
   "repository": {
     "type": "git",
