@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const esmEntry = join(here, "..", "dist", "index.js");
 const cjsEntry = join(here, "..", "dist", "index.cjs");
 
-const { default: isFastInternet } = await import(esmEntry);
+const { default: isFastInternet, checkInternet } = await import(esmEntry);
 
 // --- Test doubles -----------------------------------------------------------
 
@@ -108,6 +108,7 @@ test("legacy single `image` option is still supported", async () => {
 test("CJS build behaves identically", async () => {
   const cjs = createRequire(import.meta.url)(cjsEntry);
   assert.strictEqual(typeof cjs, "function", "require() returns the function directly");
+  assert.strictEqual(typeof cjs.checkInternet, "function", "named APIs remain available");
   behavior = { baidu: { delay: 50 } };
   assert.strictEqual(await new Promise((r) => cjs(r, { autoRegion: false })), true);
 });
@@ -195,4 +196,114 @@ test("non-image endpoints (text/HTML/JSON) work as probes via fetch(no-cors)", a
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }
+});
+
+test("checkInternet returns rich Promise-based diagnostics", async () => {
+  stubNavigator({ connection: { downlink: 18, effectiveType: "4g" } });
+  const result = await checkInternet({
+    images: ["https://fast.example/probe", "https://blocked.example/probe"],
+    threshold: 100,
+    fetch: (url) => url.toString().includes("fast.example")
+      ? new Promise((resolve) => setTimeout(() => resolve({}), 15))
+      : new Promise(() => {})
+  });
+
+  assert.strictEqual(result.isFast, true);
+  assert.strictEqual(result.reason, "fast");
+  assert.strictEqual(result.probeUrl, "https://fast.example/probe");
+  assert.strictEqual(result.attemptedProbes, 2);
+  assert.strictEqual(result.failedProbes, 0);
+  assert.strictEqual(result.downlinkMbps, 18);
+  assert.ok(result.duration >= 10);
+});
+
+test("an explicit timeout reports why the check failed", async () => {
+  const result = await checkInternet({
+    images: ["https://blocked.example/probe"],
+    threshold: 1_000,
+    timeout: 20,
+    fetch: () => new Promise(() => {})
+  });
+
+  assert.strictEqual(result.isFast, false);
+  assert.strictEqual(result.reason, "timeout");
+  assert.strictEqual(result.latency, null);
+  assert.ok(result.duration >= 15);
+});
+
+test("settling aborts losing probe requests", async () => {
+  let losingProbeAborted = false;
+  const result = await checkInternet({
+    images: ["https://winner.example/probe", "https://loser.example/probe"],
+    threshold: 100,
+    fetch: (url, init) => {
+      if (url.toString().includes("winner.example")) {
+        return new Promise((resolve) => setTimeout(() => resolve({}), 10));
+      }
+      return new Promise((_, reject) => {
+        init.signal.addEventListener("abort", () => {
+          losingProbeAborted = true;
+          reject(new Error("aborted"));
+        }, { once: true });
+      });
+    }
+  });
+
+  assert.strictEqual(result.isFast, true);
+  assert.strictEqual(losingProbeAborted, true);
+});
+
+test("an AbortSignal resolves with an aborted diagnostic", async () => {
+  const controller = new AbortController();
+  const pending = checkInternet({
+    images: ["https://blocked.example/probe"],
+    signal: controller.signal,
+    fetch: () => new Promise(() => {})
+  });
+  controller.abort();
+
+  const result = await pending;
+  assert.strictEqual(result.isFast, false);
+  assert.strictEqual(result.reason, "aborted");
+  assert.strictEqual(result.attemptedProbes, 1);
+});
+
+test("an already-aborted signal starts no requests", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let fetchCalls = 0;
+
+  const result = await checkInternet({
+    images: ["https://example.com/probe"],
+    signal: controller.signal,
+    fetch: () => {
+      fetchCalls++;
+      return Promise.resolve({});
+    }
+  });
+
+  assert.strictEqual(result.reason, "aborted");
+  assert.strictEqual(result.attemptedProbes, 0);
+  assert.strictEqual(fetchCalls, 0);
+});
+
+test("cache busting preserves URL fragments", async () => {
+  let requestedUrl;
+  await checkInternet({
+    image: "https://example.com/probe?client=test#section",
+    fetch: (url) => {
+      requestedUrl = url.toString();
+      return Promise.resolve({});
+    }
+  });
+
+  assert.match(requestedUrl, /\?client=test&isFastInternet=/);
+  assert.ok(requestedUrl.endsWith("#section"));
+});
+
+test("invalid numeric options reject with a useful error", async () => {
+  await assert.rejects(
+    checkInternet({ threshold: -1, images: ["https://example.com"] }),
+    { name: "RangeError", message: /threshold/ }
+  );
 });

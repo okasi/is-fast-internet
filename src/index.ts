@@ -1,15 +1,38 @@
+export type InternetCheckReason =
+  | "fast"
+  | "latency"
+  | "downlink"
+  | "timeout"
+  | "unreachable"
+  | "aborted";
+
 export interface IsFastInternetInfo {
   /** Round-trip time in ms of the winning probe, or null if none responded. */
   latency: number | null;
-  /**
-   * Estimated downlink in Mbps from the browser's Network Information API.
-   * Only available in Chromium-based browsers (Chrome, Edge, Opera, Android
-   * WebView); always null in Safari and Firefox.
-   */
+  /** Estimated downlink in Mbps from the Network Information API. */
   downlinkMbps: number | null;
-  /** e.g. "4g", "3g", "2g", "slow-2g". Same browser support as downlinkMbps. */
+  /** e.g. "4g", "3g", "2g", "slow-2g". */
   effectiveType: string | null;
+  /** The probe which responded first, or null when none did. */
+  probeUrl: string | null;
+  /** Number of probes started for this check. */
+  attemptedProbes: number;
+  /** Number of probes which had failed when the check completed. */
+  failedProbes: number;
+  /** Total wall-clock duration of the check in milliseconds. */
+  duration: number;
+  /** Machine-readable explanation for the result. */
+  reason: InternetCheckReason;
 }
+
+export interface InternetCheckResult extends IsFastInternetInfo {
+  isFast: boolean;
+}
+
+export type FetchImplementation = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => Promise<Response>;
 
 export interface IsFastInternetOptions {
   /** Latency in ms considered "fast". Default: 589. */
@@ -20,17 +43,16 @@ export interface IsFastInternetOptions {
   images?: string[];
   /** Call back with false after threshold * 3 ms if nothing responded. Default: true. */
   allowEarlyExit?: boolean;
-  /**
-   * Use the browser's IANA timezone to only fire region-specific probes
-   * (Baidu/Alibaba, VK/Dzen, Aparat/Digikala, Turkmenportal) when relevant,
-   * instead of always firing all of them. Default: true.
-   */
+  /** Explicit timeout in ms. Overrides the threshold-derived early-exit timeout. */
+  timeout?: number;
+  /** Only include region probes matching the browser timezone. Default: true. */
   autoRegion?: boolean;
-  /**
-   * If set, and downlinkMbps is known (Chromium browsers only), also
-   * require downlinkMbps >= this value for the result to be "fast".
-   */
+  /** Also require this downlink speed when the browser reports one. */
   minDownlinkMbps?: number;
+  /** Cancel the check without throwing; the result reason will be "aborted". */
+  signal?: AbortSignal;
+  /** Custom fetch implementation, useful for controlled environments and tests. */
+  fetch?: FetchImplementation;
 }
 
 interface RegionProbeGroup {
@@ -38,8 +60,6 @@ interface RegionProbeGroup {
   timezones: string[];
 }
 
-// Only the fields we actually read from the non-standard Network
-// Information API. Not in lib.dom.d.ts since it's still experimental.
 interface NetworkInformation {
   downlink?: number;
   effectiveType?: string;
@@ -51,18 +71,7 @@ interface NavigatorWithConnection extends Navigator {
   webkitConnection?: NetworkInformation;
 }
 
-// Always-fired global probes. Kept small — most users are on unrestricted
-// networks and don't need the region-specific set below. Yandex is here
-// rather than gated to Russian timezones because it has real usage outside
-// Russia/CIS too (Maps, Browser, Taxi are popular in Turkiye, for example).
-// Cloudflare and Akamai are large CDN operators with edge presence spanning
-// most of the world, including regions with restrictive firewalls. Several
-// entries below are purpose-built connectivity-check endpoints rather than
-// favicons (Apple's success.html is what iOS/macOS itself uses to detect
-// internet access; Cloudflare's /cdn-cgi/trace is their own recommended
-// diagnostic endpoint) — these tend to be more stable over time than an
-// arbitrary favicon path.
-const GLOBAL_PROBES: string[] = [
+const GLOBAL_PROBES = [
   "https://www.bing.com/favicon.ico",
   "https://www.apple.com/favicon.ico",
   "https://www.apple.com/library/test/success.html",
@@ -72,18 +81,10 @@ const GLOBAL_PROBES: string[] = [
   "https://www.cloudflare.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://www.akamai.com/favicon.ico"
-];
+] as const;
 
-// Region-specific probes, only added when the browser's IANA timezone
-// suggests the user is likely behind that region's firewall. This avoids
-// firing e.g. Baidu/Yandex/Aparat requests for every visitor worldwide.
 const REGION_PROBES: RegionProbeGroup[] = [
   {
-    // China officially runs on one clock (Beijing/Asia-Shanghai) despite
-    // spanning 5 geographic zones, so Asia/Harbin, Asia/Chongqing, etc. are
-    // just deprecated IANA aliases that resolve to Asia/Shanghai anyway —
-    // no need to list them. Asia/Urumqi is the one real exception: it's
-    // Xinjiang's unofficial local time and a distinct IANA zone.
     probes: [
       "https://www.baidu.com/favicon.ico",
       "https://www.alibaba.com/favicon.ico",
@@ -92,19 +93,15 @@ const REGION_PROBES: RegionProbeGroup[] = [
     timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
   },
   {
-    // All 11 of Russia's current IANA timezones, Kaliningrad (UTC+2) to
-    // Kamchatka/Anadyr (UTC+12), plus Simferopol (Crimea). Yandex is not
-    // listed here — it's in GLOBAL_PROBES since it's not Russia-only.
     probes: ["https://vk.com/favicon.ico", "https://dzen.ru/favicon.ico"],
     timezones: [
       "Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Europe/Volgograd",
       "Europe/Saratov", "Europe/Kirov", "Europe/Ulyanovsk", "Europe/Astrakhan",
-      "Europe/Simferopol",
-      "Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk", "Asia/Barnaul",
-      "Asia/Tomsk", "Asia/Novokuznetsk", "Asia/Krasnoyarsk", "Asia/Irkutsk",
-      "Asia/Chita", "Asia/Yakutsk", "Asia/Khandyga", "Asia/Vladivostok",
-      "Asia/Ust-Nera", "Asia/Magadan", "Asia/Sakhalin", "Asia/Srednekolymsk",
-      "Asia/Kamchatka", "Asia/Anadyr"
+      "Europe/Simferopol", "Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk",
+      "Asia/Barnaul", "Asia/Tomsk", "Asia/Novokuznetsk", "Asia/Krasnoyarsk",
+      "Asia/Irkutsk", "Asia/Chita", "Asia/Yakutsk", "Asia/Khandyga",
+      "Asia/Vladivostok", "Asia/Ust-Nera", "Asia/Magadan", "Asia/Sakhalin",
+      "Asia/Srednekolymsk", "Asia/Kamchatka", "Asia/Anadyr"
     ]
   },
   {
@@ -126,17 +123,13 @@ function detectTimeZone(): string {
 }
 
 function buildDefaultProbes(autoRegion: boolean): string[] {
-  let probes = GLOBAL_PROBES.slice();
-  if (!autoRegion) {
-    REGION_PROBES.forEach((region) => {
-      probes = probes.concat(region.probes);
-    });
-    return probes;
+  const probes: string[] = [...GLOBAL_PROBES];
+  const timezone = autoRegion ? detectTimeZone() : null;
+
+  for (const region of REGION_PROBES) {
+    if (timezone === null || region.timezones.includes(timezone)) probes.push(...region.probes);
   }
-  const tz = detectTimeZone();
-  REGION_PROBES.forEach((region) => {
-    if (region.timezones.indexOf(tz) !== -1) probes = probes.concat(region.probes);
-  });
+
   return probes;
 }
 
@@ -145,90 +138,162 @@ interface ConnectionInfo {
   effectiveType: string | null;
 }
 
-// Free, instant bandwidth signal from the browser itself. Only available in
-// Chromium-based browsers (Chrome, Edge, Opera, Android WebView) — Safari
-// and Firefox don't implement the Network Information API, so this (and
-// therefore info.downlinkMbps) will be null there.
 function getConnectionInfo(): ConnectionInfo | null {
   const nav = typeof navigator !== "undefined" ? (navigator as NavigatorWithConnection) : null;
-  const conn = nav && (nav.connection || nav.mozConnection || nav.webkitConnection);
-  if (conn && typeof conn.downlink === "number") {
-    return { downlinkMbps: conn.downlink, effectiveType: conn.effectiveType || null };
+  const connection = nav && (nav.connection || nav.mozConnection || nav.webkitConnection);
+
+  if (connection && typeof connection.downlink === "number") {
+    return {
+      downlinkMbps: connection.downlink,
+      effectiveType: connection.effectiveType || null
+    };
   }
+
   return null;
 }
 
-/**
- * Checks whether the user's connection is fast by racing tiny network
- * requests against geo-diverse domains (works behind national firewalls
- * in China, Russia, Iran, and Turkmenistan).
- */
-export default function isFastInternet(
-  callback: (isFast: boolean, info: IsFastInternetInfo) => void,
-  options?: IsFastInternetOptions
-): void {
-  const opts = options || {};
-  const threshold = opts.threshold || 589;
-  const allowEarlyExit = opts.allowEarlyExit !== false;
-  const autoRegion = opts.autoRegion !== false;
-  const minDownlinkMbps = opts.minDownlinkMbps;
-  const probes = opts.images || (opts.image ? [opts.image] : buildDefaultProbes(autoRegion));
+function now(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
 
+function addCacheBuster(url: string, value: string): string {
+  const hashIndex = url.indexOf("#");
+  const base = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? "" : url.slice(hashIndex);
+  return `${base}${base.includes("?") ? "&" : "?"}isFastInternet=${value}${hash}`;
+}
+
+function finiteNonNegative(value: number | undefined, fallback: number, name: string): number {
+  const resolved = value ?? fallback;
+  if (!Number.isFinite(resolved) || resolved < 0) {
+    throw new RangeError(`${name} must be a finite, non-negative number`);
+  }
+  return resolved;
+}
+
+type ResultCallback = (isFast: boolean, info: IsFastInternetInfo) => void;
+
+function runCheck(callback: ResultCallback, options: IsFastInternetOptions = {}): void {
+  const threshold = finiteNonNegative(options.threshold, 589, "threshold");
+  const minDownlinkMbps = options.minDownlinkMbps === undefined
+    ? undefined
+    : finiteNonNegative(options.minDownlinkMbps, 0, "minDownlinkMbps");
+  const allowEarlyExit = options.allowEarlyExit !== false;
+  const timeout = options.timeout === undefined
+    ? (allowEarlyExit ? threshold * 3 : null)
+    : finiteNonNegative(options.timeout, 0, "timeout");
+  const probes = options.images
+    ? [...options.images]
+    : options.image
+      ? [options.image]
+      : buildDefaultProbes(options.autoRegion !== false);
+  const fetchImplementation = options.fetch ?? globalThis.fetch;
+
+  if (typeof fetchImplementation !== "function") {
+    throw new Error("is-fast-internet requires fetch; pass options.fetch or use a modern browser");
+  }
+
+  const checkStarted = now();
+  const controller = new AbortController();
   let settled = false;
-  let failedCount = 0;
+  let attemptedProbes = 0;
+  let failedProbes = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  function settle(fast: boolean, latency: number | null): void {
+  const onExternalAbort = (): void => settle(false, null, null, "aborted");
+
+  function settle(
+    isFast: boolean,
+    latency: number | null,
+    probeUrl: string | null,
+    reason: InternetCheckReason
+  ): void {
     if (settled) return;
     settled = true;
     if (timer !== null) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onExternalAbort);
+    controller.abort();
 
-    const conn = getConnectionInfo();
+    const connection = getConnectionInfo();
     const info: IsFastInternetInfo = {
       latency,
-      downlinkMbps: conn ? conn.downlinkMbps : null,
-      effectiveType: conn ? conn.effectiveType : null
+      downlinkMbps: connection?.downlinkMbps ?? null,
+      effectiveType: connection?.effectiveType ?? null,
+      probeUrl,
+      attemptedProbes,
+      failedProbes,
+      duration: Math.max(0, now() - checkStarted),
+      reason
     };
 
-    if (fast && typeof minDownlinkMbps === "number" && typeof info.downlinkMbps === "number") {
-      fast = info.downlinkMbps >= minDownlinkMbps;
+    if (isFast && minDownlinkMbps !== undefined && info.downlinkMbps !== null &&
+        info.downlinkMbps < minDownlinkMbps) {
+      isFast = false;
+      info.reason = "downlink";
     }
 
-    callback(fast, info);
+    callback(isFast, info);
   }
 
-  // No probes to race (e.g. options.images === []). Settle rather than
-  // hang silently — otherwise the callback would never fire when
-  // allowEarlyExit is also disabled.
+  if (options.signal?.aborted) {
+    settle(false, null, null, "aborted");
+    return;
+  }
+  options.signal?.addEventListener("abort", onExternalAbort, { once: true });
+
   if (probes.length === 0) {
-    settle(false, null);
+    settle(false, null, null, "unreachable");
     return;
   }
 
-  if (allowEarlyExit) {
-    timer = setTimeout(() => {
-      settle(false, null); // nothing responded in time — too slow (or fully blocked)
-    }, threshold * 3);
+  if (timeout !== null) {
+    timer = setTimeout(() => settle(false, null, null, "timeout"), timeout);
   }
 
-  probes.forEach((url) => {
-    const startTime = Date.now();
-    const bustedUrl = url + (url.indexOf("?") === -1 ? "?t=" : "&t=") + startTime;
+  probes.forEach((url, index) => {
+    attemptedProbes++;
+    const probeStarted = now();
+    const bustedUrl = addCacheBuster(url, `${Date.now()}-${index}`);
 
-    // no-cors mode: works for any content type (images, HTML, JSON, plain
-    // text) and doesn't require CORS/Timing-Allow-Origin headers, since we
-    // only need to know the request completed and how long it took — not
-    // read the (opaque) response body. Rejects on real network failure
-    // (DNS block, connection reset), which is what censorship triggers.
-    fetch(bustedUrl, { mode: "no-cors", cache: "no-store" })
-      .then(() => {
-        // First probe to finish is the lowest-latency reachable one.
-        const latency = Date.now() - startTime;
-        settle(latency <= threshold, latency);
-      })
-      .catch(() => {
-        failedCount++;
-        if (failedCount === probes.length) settle(false, null); // every domain unreachable
+    try {
+      fetchImplementation(bustedUrl, {
+        mode: "no-cors",
+        cache: "no-store",
+        signal: controller.signal
+      }).then(() => {
+        const latency = Math.max(0, now() - probeStarted);
+        settle(latency <= threshold, latency, url, latency <= threshold ? "fast" : "latency");
+      }).catch(() => {
+        if (settled) return;
+        failedProbes++;
+        if (failedProbes === probes.length) settle(false, null, null, "unreachable");
       });
+    } catch {
+      failedProbes++;
+      if (failedProbes === probes.length) settle(false, null, null, "unreachable");
+    }
   });
+}
+
+/**
+ * Promise-based internet quality check with cancellation and diagnostic output.
+ */
+export function checkInternet(options?: IsFastInternetOptions): Promise<InternetCheckResult> {
+  return new Promise((resolve, reject) => {
+    try {
+      runCheck((isFast, info) => resolve({ isFast, ...info }), options);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Backwards-compatible callback API. For new code, prefer checkInternet().
+ */
+export default function isFastInternet(
+  callback: ResultCallback,
+  options?: IsFastInternetOptions
+): void {
+  runCheck(callback, options);
 }

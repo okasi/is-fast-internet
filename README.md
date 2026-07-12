@@ -1,6 +1,6 @@
 # ⚡ is-fast-internet
 
-**Censorship-proof ⚡ lightning-fast internet detection that just works.** 🌍🛡️
+**A tiny, zero-dependency internet quality check built for real-world networks.**
 
 Zero dependencies. Microscopic bundle. Delivers an accurate answer **even behind the Great Firewall, across Russia, Iran, and Turkmenistan**.
 
@@ -13,28 +13,59 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 - 🗺️ **9 global + 8 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
-- ✅ Callback fires **exactly once** — always, even on complete blockage or timeout
+- 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
+- 🧹 **No request leaks** — losing probes are aborted as soon as the result is known
+- 🔌 **Modern and compatible** — Promise API, AbortSignal support, plus the original callback API
 
 The global set is small by design. Region-specific probes are added automatically based on the visitor's browser timezone, so people in New York never hit Baidu and visitors in Shanghai get the China-optimized probes.
 
 ## Install
 
+**[Try the live Signal Lab demo →](https://okasi.github.io/is-fast-internet/)**
+
 ```sh
 npm install is-fast-internet
 ```
 
-## Usage
+## Quick start
+
+```js
+import { checkInternet } from "is-fast-internet";
+
+const result = await checkInternet();
+
+if (result.isFast) {
+  // Load the high-resolution experience.
+} else {
+  // Serve the lightweight experience.
+}
+
+console.log(result);
+// { isFast: true, latency: 82, reason: "fast", probeUrl: "https://...", ... }
+```
+
+Cancel a check using the same `AbortSignal` pattern as `fetch`:
+
+```js
+const controller = new AbortController();
+const pending = checkInternet({ signal: controller.signal });
+controller.abort();
+
+const result = await pending;
+console.log(result.reason); // "aborted"
+```
+
+Cancellation resolves to a diagnostic result instead of throwing, so it is safe in UI teardown paths.
+
+### Callback API
+
+The original API remains fully supported:
 
 ```js
 import isFastInternet from "is-fast-internet";
 
-isFastInternet(function (isFast, info) {
-  if (isFast) {
-    // load the heavy hero video
-  } else {
-    // serve the lightweight experience
-  }
-  console.log(info); // { latency: 82, downlinkMbps: 10, effectiveType: "4g" }
+isFastInternet((isFast, info) => {
+  console.log(isFast, info.reason, info.latency);
 });
 ```
 
@@ -42,28 +73,50 @@ CommonJS also works:
 
 ```js
 const isFastInternet = require("is-fast-internet");
+const { checkInternet } = require("is-fast-internet");
 ```
 
 ## Options
 
 ```js
-isFastInternet(callback, {
+await checkInternet({
   threshold: 589,        // ms of latency considered "fast" (default 589)
-  allowEarlyExit: true,  // call back with false after threshold * 3 ms (default true)
+  timeout: 1500,         // explicit overall deadline (default threshold * 3)
   autoRegion: true,      // only fire region probes matching browser timezone (default true)
   minDownlinkMbps: 5,    // also require this downlink when known (default: unset)
-  images: [               // custom probe URLs — fully replaces the default set
+  signal,                 // optional AbortSignal
+  images: [               // custom URLs fully replace the defaults
     "https://cdn.example.com/px.gif"
   ]
 });
 ```
 
-The callback always fires exactly once: `callback(isFast, info)`.
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `threshold` | `589` | Maximum winning-probe latency considered fast |
+| `timeout` | `threshold * 3` | Overall deadline; takes precedence over `allowEarlyExit` |
+| `allowEarlyExit` | `true` | Disable the derived deadline when false and `timeout` is unset |
+| `autoRegion` | `true` | Only add probes relevant to the browser timezone |
+| `minDownlinkMbps` | unset | Require this speed when the browser exposes an estimate |
+| `image` | unset | Legacy single custom probe URL |
+| `images` | defaults | Custom probe list; an empty list returns `unreachable` immediately |
+| `signal` | unset | Cancel with an `AbortSignal` |
+| `fetch` | `globalThis.fetch` | Inject a fetch-compatible implementation for tests or controlled runtimes |
 
-- `isFast` — `true`/`false`, based on `latency <= threshold` (and `minDownlinkMbps`
-  if you set it and it's known).
-- `info.latency` — ms round-trip of the winning probe, or `null` if none loaded.
-- `info.downlinkMbps` / `info.effectiveType` — see [Speed, not just latency](#speed-not-just-latency).
+All numeric options must be finite and non-negative. Invalid values reject `checkInternet()` with a `RangeError` and throw from the callback API.
+
+## Understanding results
+
+| Reason | Meaning |
+| --- | --- |
+| `fast` | A probe responded within the threshold and passed the optional downlink gate |
+| `latency` | The winning reachable probe exceeded the threshold |
+| `downlink` | Latency passed, but browser-reported downlink missed `minDownlinkMbps` |
+| `timeout` | No probe responded before the deadline |
+| `unreachable` | Every probe failed, or no probes were configured |
+| `aborted` | The supplied signal cancelled the check |
+
+The result also includes `probeUrl`, `latency`, `duration`, `attemptedProbes`, and `failedProbes`, providing enough context for field telemetry without exposing response bodies or user data.
 
 ## Default probes
 
@@ -91,14 +144,15 @@ Fires only when the browser's timezone matches (see [Region detection](#region-d
 | Turkmenistan | `turkmenportal.com/favicon.ico` |
 
 All active probes fire in parallel with a cache-busting query string, via
-`fetch(url, { mode: "no-cors", cache: "no-store" })`. This works regardless
+`fetch(url, { mode: "no-cors", cache: "no-store", signal })`. This works regardless
 of content type — favicons, HTML pages, JSON — since it only needs to know
 the request completed and how long it took, not read the (opaque) response
 body, and it doesn't require CORS headers from the target domain. Whichever
 completes first is by definition the lowest-latency reachable endpoint, so
 its latency is compared against `threshold`. Failed probes (DNS blocks,
 connection resets — what firewalls actually do) are counted, and if every
-active probe fails the callback receives `false`.
+active probe fails the result is `unreachable`. Once a result is known, all
+remaining requests are aborted.
 
 > Note: national firewalls change frequently. If you deploy to a specific
 > region, pass your own `images` list pointing at a domain you control or a
@@ -153,10 +207,15 @@ parallel JS files.
 npm install     # installs devDependencies (tsup, typescript)
 npm run build   # emits dist/index.js, dist/index.cjs, dist/index.d.ts, dist/index.d.cts
 npm run typecheck
+npm test
+npm run check   # typecheck, tests, and package validation
 ```
 
 `dist/` is generated, not committed — `npm run build` runs automatically
 before `npm publish` via the `prepublishOnly` script.
+
+Pull requests run typechecking, the full ESM/CommonJS test suite, and an npm
+package dry run in GitHub Actions.
 
 ## License
 
