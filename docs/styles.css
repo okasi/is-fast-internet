@@ -109,8 +109,8 @@ h1 em { font-style: normal; color: var(--green); }
 #probe-list .probe-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #738079; }
 #probe-list li[data-state="responded"] .probe-state { color: var(--green); }
 #probe-list li[data-state="responded"] .probe-state::before { background: var(--green); box-shadow: 0 0 8px rgba(186,252,71,.6); }
-#probe-list li[data-state="failed"] .probe-state { color: #ff9d86; }
-#probe-list li[data-state="failed"] .probe-state::before { background: #ff8066; }
+#probe-list li[data-state="failed"] .probe-state, #probe-list li[data-state="timed-out"] .probe-state { color: #ff9d86; }
+#probe-list li[data-state="failed"] .probe-state::before, #probe-list li[data-state="timed-out"] .probe-state::before { background: #ff8066; }
 #probe-list li[data-state="cancelled"] { opacity: .65; }
 #probe-list li[data-state="cancelled"] .probe-state::before { background: #68766f; }
 #probe-list .probe-empty { display: block; padding: 12px 0 4px; min-height: 0; color: #6f7d76; line-height: 1.5; }

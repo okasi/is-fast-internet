@@ -1,8 +1,48 @@
-const modulePath = location.hostname.endsWith("github.io")
-  ? "./is-fast-internet.js"
-  : "../dist/index.js";
+const LATENCY_THRESHOLD = 589;
+const SCAN_TIMEOUT = LATENCY_THRESHOLD * 3;
 
-const { checkInternet } = await import(modulePath);
+const GLOBAL_PROBES = [
+  "https://www.bing.com/favicon.ico",
+  "https://www.apple.com/favicon.ico",
+  "https://www.apple.com/library/test/success.html",
+  "https://app-site-association.cdn-apple.com/a/v1/apple.com",
+  "https://yandex.com/favicon.ico",
+  "https://yandex.com/internet/",
+  "https://www.cloudflare.com/favicon.ico",
+  "https://api.cloudflare.com/cdn-cgi/trace",
+  "https://www.akamai.com/favicon.ico"
+];
+
+const REGION_PROBES = [
+  {
+    probes: [
+      "https://www.baidu.com/favicon.ico",
+      "https://www.alibaba.com/favicon.ico",
+      "https://www.alibabacloud.com/favicon.ico"
+    ],
+    timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
+  },
+  {
+    probes: ["https://vk.com/favicon.ico", "https://dzen.ru/favicon.ico"],
+    timezones: [
+      "Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Europe/Volgograd",
+      "Europe/Saratov", "Europe/Kirov", "Europe/Ulyanovsk", "Europe/Astrakhan",
+      "Europe/Simferopol", "Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk",
+      "Asia/Barnaul", "Asia/Tomsk", "Asia/Novokuznetsk", "Asia/Krasnoyarsk",
+      "Asia/Irkutsk", "Asia/Chita", "Asia/Yakutsk", "Asia/Khandyga",
+      "Asia/Vladivostok", "Asia/Ust-Nera", "Asia/Magadan", "Asia/Sakhalin",
+      "Asia/Srednekolymsk", "Asia/Kamchatka", "Asia/Anadyr"
+    ]
+  },
+  {
+    probes: ["https://www.aparat.com/favicon.ico", "https://www.digikala.com/favicon.ico"],
+    timezones: ["Asia/Tehran"]
+  },
+  {
+    probes: ["https://turkmenportal.com/favicon.ico"],
+    timezones: ["Asia/Ashgabat"]
+  }
+];
 
 const runButton = document.querySelector("#run-check");
 const consoleShell = document.querySelector("#console-shell");
@@ -34,30 +74,70 @@ let latestResult = null;
 let toastTimer = null;
 let probeRecords = [];
 
-function cleanProbeUrl(input) {
-  const url = new URL(input.toString());
-  url.searchParams.delete("isFastInternet");
-  return url;
+function activeProbes() {
+  let timeZone = "";
+
+  try {
+    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    // Use the global probes when the browser cannot expose a time zone.
+  }
+
+  return [
+    ...GLOBAL_PROBES,
+    ...REGION_PROBES.flatMap(({ probes, timezones }) => timezones.includes(timeZone) ? probes : [])
+  ];
 }
 
-function renderProbeLedger() {
-  if (probeRecords.length === 0) {
+function cacheBustedUrl(url, index) {
+  const probeUrl = new URL(url);
+  probeUrl.searchParams.set("isFastInternet", `${Date.now()}-${index}`);
+  return probeUrl;
+}
+
+function getConnectionInfo() {
+  const connection = navigator.connection ?? navigator.mozConnection ?? navigator.webkitConnection;
+
+  return typeof connection?.downlink === "number"
+    ? {
+        downlinkMbps: connection.downlink,
+        effectiveType: connection.effectiveType ?? null
+      }
+    : { downlinkMbps: null, effectiveType: null };
+}
+
+function compareProbes(left, right) {
+  if (left.state === "responded" && right.state === "responded") {
+    return left.latency - right.latency || left.order - right.order;
+  }
+  if (left.state === "responded") return -1;
+  if (right.state === "responded") return 1;
+  if (left.state === "pending" && right.state !== "pending") return -1;
+  if (right.state === "pending" && left.state !== "pending") return 1;
+  return left.order - right.order;
+}
+
+function renderProbeLedger(records = probeRecords) {
+  if (records !== probeRecords) return;
+
+  if (records.length === 0) {
     probeList.innerHTML = '<li class="probe-empty">Every contacted endpoint will appear here.</li>';
     probeSummary.textContent = "Waiting to scan";
     return;
   }
 
-  const totals = probeRecords.reduce((counts, probe) => {
+  const totals = records.reduce((counts, probe) => {
     counts[probe.state] = (counts[probe.state] ?? 0) + 1;
     return counts;
   }, {});
-  const finished = (totals.responded ?? 0) + (totals.failed ?? 0) + (totals.cancelled ?? 0);
-  probeSummary.textContent = finished === probeRecords.length
-    ? `${probeRecords.length} contacted · ${totals.responded ?? 0} reached · ${totals.failed ?? 0} failed`
-    : `${probeRecords.length} contacted · ${totals.pending ?? 0} in flight`;
+  const finished = records.length - (totals.pending ?? 0);
+  const unavailable = (totals.failed ?? 0) + (totals["timed-out"] ?? 0) + (totals.cancelled ?? 0);
+  probeSummary.textContent = finished === records.length
+    ? `${records.length} checked · ${totals.responded ?? 0} reached · ${unavailable} unavailable`
+    : `${records.length} checking · ${totals.pending ?? 0} in flight`;
 
   const fragment = document.createDocumentFragment();
-  probeRecords.forEach((probe, index) => {
+  [...records].sort(compareProbes).forEach((probe, index) => {
     const row = document.createElement("li");
     const number = document.createElement("span");
     const address = document.createElement("span");
@@ -78,6 +158,8 @@ function renderProbeLedger() {
       ? `${Math.round(probe.latency)}ms`
       : probe.state === "pending"
         ? "probing"
+        : probe.state === "timed-out"
+          ? "timed out"
         : probe.state;
 
     address.append(host, " ", path);
@@ -88,27 +170,82 @@ function renderProbeLedger() {
   probeList.replaceChildren(fragment);
 }
 
-async function trackedFetch(input, init) {
-  const probe = {
-    url: cleanProbeUrl(input),
-    state: "pending",
-    latency: null,
-    startedAt: performance.now()
-  };
-  probeRecords.push(probe);
-  renderProbeLedger();
+async function fetchProbe(probe, controller, records, timedOut) {
+  probe.startedAt = performance.now();
 
   try {
-    const response = await globalThis.fetch(input, init);
+    await globalThis.fetch(cacheBustedUrl(probe.url.href, probe.order), {
+      mode: "no-cors",
+      cache: "no-store",
+      signal: controller.signal
+    });
     probe.state = "responded";
     probe.latency = performance.now() - probe.startedAt;
-    renderProbeLedger();
-    return response;
-  } catch (error) {
-    probe.state = init?.signal?.aborted ? "cancelled" : "failed";
-    renderProbeLedger();
-    throw error;
+  } catch {
+    probe.state = controller.signal.aborted
+      ? timedOut()
+        ? "timed-out"
+        : "cancelled"
+      : "failed";
+  } finally {
+    renderProbeLedger(records);
   }
+}
+
+async function checkAllProbes(signal) {
+  const controller = new AbortController();
+  const startedAt = performance.now();
+  let timedOut = false;
+  const stop = (reason) => controller.abort(reason);
+  const onAbort = () => stop("aborted");
+
+  if (signal.aborted) stop("aborted");
+  else signal.addEventListener("abort", onAbort, { once: true });
+
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    stop("timeout");
+  }, SCAN_TIMEOUT);
+
+  const records = activeProbes().map((url, order) => ({
+    url: new URL(url),
+    order,
+    state: "pending",
+    latency: null,
+    startedAt: null
+  }));
+  probeRecords = records;
+  renderProbeLedger(records);
+
+  await Promise.allSettled(records.map((probe) => fetchProbe(probe, controller, records, () => timedOut)));
+  clearTimeout(timeout);
+  signal.removeEventListener("abort", onAbort);
+
+  const responders = records
+    .filter((probe) => probe.state === "responded")
+    .sort(compareProbes);
+  const fastest = responders[0] ?? null;
+  const { downlinkMbps, effectiveType } = getConnectionInfo();
+  const aborted = signal.aborted && !timedOut;
+  const failedProbes = records.filter((probe) => (
+    probe.state === "failed" || probe.state === "timed-out"
+  )).length;
+
+  return {
+    isFast: !aborted && fastest !== null && fastest.latency <= LATENCY_THRESHOLD,
+    reason: aborted
+      ? "aborted"
+      : fastest === null
+        ? timedOut ? "timeout" : "unreachable"
+        : fastest.latency <= LATENCY_THRESHOLD ? "fast" : "latency",
+    latency: fastest?.latency ?? null,
+    probeUrl: fastest?.url.href ?? null,
+    downlinkMbps,
+    effectiveType,
+    attemptedProbes: records.length,
+    failedProbes,
+    duration: Math.max(0, performance.now() - startedAt)
+  };
 }
 
 function setScanning(scanning) {
@@ -147,30 +284,31 @@ function renderResult(result) {
 
 async function runLiveCheck() {
   activeController?.abort();
-  activeController = new AbortController();
+  const controller = new AbortController();
+  activeController = controller;
   setScanning(true);
   statusTitle.textContent = "Scanning endpoints";
-  statusDetail.textContent = "Racing the closest reachable global signals";
+  statusDetail.textContent = "Waiting for every active endpoint, then ranking the fastest";
   latencyValue.textContent = "…";
   downlinkValue.textContent = "…";
   probesValue.textContent = "…";
-  terminalOutput.textContent = "await checkInternet({ signal })";
+  terminalOutput.textContent = "await Promise.allSettled(probes)";
   copyResultButton.disabled = true;
-  probeRecords = [];
-  renderProbeLedger();
 
   try {
-    renderResult(await checkInternet({
-      signal: activeController.signal,
-      fetch: trackedFetch
-    }));
+    const result = await checkAllProbes(controller.signal);
+    if (activeController === controller) renderResult(result);
   } catch (error) {
-    statusTitle.textContent = "Unable to start";
-    statusDetail.textContent = error instanceof Error ? error.message : "The live check could not run";
-    terminalOutput.textContent = "checkInternet() rejected";
+    if (activeController === controller) {
+      statusTitle.textContent = "Unable to start";
+      statusDetail.textContent = error instanceof Error ? error.message : "The live check could not run";
+      terminalOutput.textContent = "The endpoint scan failed to start";
+    }
   } finally {
-    setScanning(false);
-    activeController = null;
+    if (activeController === controller) {
+      setScanning(false);
+      activeController = null;
+    }
   }
 }
 
