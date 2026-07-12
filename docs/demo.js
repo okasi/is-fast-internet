@@ -13,6 +13,8 @@ const latencyCaption = document.querySelector("#latency-caption");
 const downlinkValue = document.querySelector("#downlink-value");
 const probesValue = document.querySelector("#probes-value");
 const probesCaption = document.querySelector("#probes-caption");
+const probeSummary = document.querySelector("#probe-summary");
+const probeList = document.querySelector("#probe-list");
 const terminalOutput = document.querySelector("#terminal-output");
 const copyResultButton = document.querySelector("#copy-result");
 const copyCodeButton = document.querySelector("#copy-code");
@@ -30,6 +32,84 @@ const outcomeCopy = {
 let activeController = null;
 let latestResult = null;
 let toastTimer = null;
+let probeRecords = [];
+
+function cleanProbeUrl(input) {
+  const url = new URL(input.toString());
+  url.searchParams.delete("isFastInternet");
+  return url;
+}
+
+function renderProbeLedger() {
+  if (probeRecords.length === 0) {
+    probeList.innerHTML = '<li class="probe-empty">Every contacted endpoint will appear here.</li>';
+    probeSummary.textContent = "Waiting to scan";
+    return;
+  }
+
+  const totals = probeRecords.reduce((counts, probe) => {
+    counts[probe.state] = (counts[probe.state] ?? 0) + 1;
+    return counts;
+  }, {});
+  const finished = (totals.responded ?? 0) + (totals.failed ?? 0) + (totals.cancelled ?? 0);
+  probeSummary.textContent = finished === probeRecords.length
+    ? `${probeRecords.length} contacted · ${totals.responded ?? 0} reached · ${totals.failed ?? 0} failed`
+    : `${probeRecords.length} contacted · ${totals.pending ?? 0} in flight`;
+
+  const fragment = document.createDocumentFragment();
+  probeRecords.forEach((probe, index) => {
+    const row = document.createElement("li");
+    const number = document.createElement("span");
+    const address = document.createElement("span");
+    const host = document.createElement("span");
+    const path = document.createElement("span");
+    const state = document.createElement("span");
+
+    row.dataset.state = probe.state;
+    row.title = probe.url.href;
+    number.className = "probe-index";
+    number.textContent = String(index + 1).padStart(2, "0");
+    address.className = "probe-address";
+    host.textContent = probe.url.hostname;
+    path.className = "probe-path";
+    path.textContent = `${probe.url.pathname}${probe.url.search}`;
+    state.className = "probe-state";
+    state.textContent = probe.state === "responded"
+      ? `${Math.round(probe.latency)}ms`
+      : probe.state === "pending"
+        ? "probing"
+        : probe.state;
+
+    address.append(host, " ", path);
+    row.append(number, address, state);
+    fragment.append(row);
+  });
+
+  probeList.replaceChildren(fragment);
+}
+
+async function trackedFetch(input, init) {
+  const probe = {
+    url: cleanProbeUrl(input),
+    state: "pending",
+    latency: null,
+    startedAt: performance.now()
+  };
+  probeRecords.push(probe);
+  renderProbeLedger();
+
+  try {
+    const response = await globalThis.fetch(input, init);
+    probe.state = "responded";
+    probe.latency = performance.now() - probe.startedAt;
+    renderProbeLedger();
+    return response;
+  } catch (error) {
+    probe.state = init?.signal?.aborted ? "cancelled" : "failed";
+    renderProbeLedger();
+    throw error;
+  }
+}
 
 function setScanning(scanning) {
   consoleShell.classList.toggle("scanning", scanning);
@@ -76,9 +156,14 @@ async function runLiveCheck() {
   probesValue.textContent = "…";
   terminalOutput.textContent = "await checkInternet({ signal })";
   copyResultButton.disabled = true;
+  probeRecords = [];
+  renderProbeLedger();
 
   try {
-    renderResult(await checkInternet({ signal: activeController.signal }));
+    renderResult(await checkInternet({
+      signal: activeController.signal,
+      fetch: trackedFetch
+    }));
   } catch (error) {
     statusTitle.textContent = "Unable to start";
     statusDetail.textContent = error instanceof Error ? error.message : "The live check could not run";
