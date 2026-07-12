@@ -1,12 +1,12 @@
 # Repository instructions
 
-When committing requested package changes and pushing them to `main`, publish the corresponding release to npm as part of the same workflow.
+Every push to `main` is released automatically by `.github/workflows/publish.yml`. The workflow increments the patch version in `package.json` and `package-lock.json`, validates the package, commits the release version, creates the matching `v*` tag, and publishes to npm through Trusted Publishing (OIDC). A concurrency group serializes releases, and GitHub's built-in token prevents the generated release commit/tag from recursively starting another workflow.
 
-Before publishing:
+Before pushing a package change to `main`:
 
 1. Run `npm run typecheck`, `npm test`, and `npm pack --dry-run`.
-2. Ensure the version in `package.json` has not already been published. If it has, increment it according to semantic versioning before committing.
-3. Publish only after the commit has been pushed successfully to `origin/main`.
-4. Publish the public package with `npm publish --access public --registry=https://registry.npmjs.org/` and verify it with `npm view is-fast-internet@<version> --registry=https://registry.npmjs.org/`.
+2. Commit and push the change without manually bumping the version for an ordinary main-branch release.
+3. Let the workflow create the patch version commit and tag and publish only after validation succeeds.
+4. Verify the release with `npm view is-fast-internet@<version> --registry=https://registry.npmjs.org/`; do not consider it complete until npm serves the new version.
 
 Do not publish commits from branches other than `main`.
