@@ -82,17 +82,16 @@ interface NavigatorWithConnection extends Navigator {
 }
 
 const GLOBAL_PROBES = [
-  "https://www.apple.com/favicon.ico",
   "https://www.apple.com/library/test/success.html",
   "https://yandex.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://1.1.1.1/cdn-cgi/trace",
   "https://www.akamai.com/favicon.ico",
   "https://whatismyip.akamai.com/advanced?debug",
+  "https://whatismyip.akamai.com/advanced",
   "https://checkip.global.api.aws/",
   "https://checkip.amazonaws.com/",
   "https://detectportal.firefox.com/canonical.html",
-  "https://www.msftconnecttest.com/connecttest.txt",
   "https://edge.microsoft.com/captiveportal/generate_204",
   "https://am.i.mullvad.net/json",
   "https://tls.peet.ws/api/clean",

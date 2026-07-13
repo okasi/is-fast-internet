@@ -10,7 +10,7 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 
 - ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
 - 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
-- 🗺️ **25 global + 6 regional probes** — Apple, Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
+- 🗺️ **24 global + 6 regional probes** — Apple, Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
 - 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
@@ -128,17 +128,16 @@ Always fires (small, global):
 
 | Probe |
 | --- |
-| `www.apple.com/favicon.ico` |
 | `www.apple.com/library/test/success.html` — the same endpoint iOS/macOS uses for its own captive-portal / internet check |
 | `yandex.com/favicon.ico` — not gated to Russian timezones since Yandex (Maps, Browser, Taxi) has real usage in Turkiye and elsewhere too |
 | `api.cloudflare.com/cdn-cgi/trace` — Cloudflare's own recommended connectivity-diagnostic endpoint |
 | `1.1.1.1/cdn-cgi/trace` — Cloudflare's anycast resolver connectivity diagnostic endpoint |
 | `www.akamai.com/favicon.ico` — major CDN operator with edge presence worldwide |
 | `whatismyip.akamai.com/advanced?debug` |
+| `whatismyip.akamai.com/advanced` |
 | `checkip.global.api.aws/` |
 | `checkip.amazonaws.com/` |
 | `detectportal.firefox.com/canonical.html` — HTTPS |
-| `www.msftconnecttest.com/connecttest.txt` — HTTPS |
 | `edge.microsoft.com/captiveportal/generate_204` |
 | `am.i.mullvad.net/json` |
 | `tls.peet.ws/api/clean` |
@@ -182,7 +181,7 @@ By default (`autoRegion: true`), the region-specific probes above only fire
 when `Intl.DateTimeFormat().resolvedOptions().timeZone` matches that region
 (e.g. `Asia/Shanghai` → Baidu/Alibaba, `Europe/Moscow` → VK, `Asia/Tehran` →
 Aparat, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
-only ever fires the 25 global probes across Apple, Yandex, Cloudflare, Akamai,
+only ever fires the 24 global probes across Apple, Yandex, Cloudflare, Akamai,
 AWS, Firefox, Microsoft, and independent IP/privacy diagnostic endpoints.
 
 This is a latency/traffic optimization, not a correctness requirement — a

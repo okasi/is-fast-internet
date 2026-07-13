@@ -81,7 +81,7 @@ test("all probes hanging triggers the early-exit timeout at ~3x threshold", asyn
 });
 
 test("callback fires exactly once even when many probes resolve", async () => {
-  behavior = { "apple.com/favicon": { delay: 10 }, baidu: { delay: 15 }, "yandex.com/favicon": { delay: 20 } };
+  behavior = { "success.html": { delay: 10 }, baidu: { delay: 15 }, "yandex.com/favicon": { delay: 20 } };
   let calls = 0;
   isFastInternet(() => calls++, { autoRegion: false });
   await new Promise((r) => setTimeout(r, 200));
@@ -115,9 +115,9 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
   const active = getDefaultProbes();
   const all = getDefaultProbes({ autoRegion: false });
 
-  assert.strictEqual(active.length, 25);
+  assert.strictEqual(active.length, 24);
   assert.ok(active.every((probe) => probe.region === null));
-  assert.strictEqual(all.length, 31);
+  assert.strictEqual(all.length, 30);
   assert.deepStrictEqual(
     [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
     ["China", "Iran", "Russia / CIS", "Turkmenistan"]
@@ -140,7 +140,7 @@ test("autoRegion adds the region probe for a matching timezone", async () => {
 });
 
 test("info.latency reflects the winning probe's round-trip time", async () => {
-  behavior = { "apple.com/favicon": { delay: 40 } };
+  behavior = { "success.html": { delay: 40 } };
   const { fast, info } = await runFull({ threshold: 100 });
   assert.strictEqual(fast, true);
   assert.ok(Math.abs(info.latency - 40) <= 15);
@@ -148,7 +148,7 @@ test("info.latency reflects the winning probe's round-trip time", async () => {
 
 test("info reads downlinkMbps/effectiveType from navigator.connection", async () => {
   stubNavigator({ connection: { downlink: 12.5, effectiveType: "4g" } });
-  behavior = { "apple.com/favicon": { delay: 10 } };
+  behavior = { "success.html": { delay: 10 } };
   const { info } = await runFull({ threshold: 100 });
   assert.strictEqual(info.downlinkMbps, 12.5);
   assert.strictEqual(info.effectiveType, "4g");
@@ -156,14 +156,14 @@ test("info reads downlinkMbps/effectiveType from navigator.connection", async ()
 
 test("downlinkMbps is null when the Network Information API is unavailable", async () => {
   stubNavigator({});
-  behavior = { "apple.com/favicon": { delay: 10 } };
+  behavior = { "success.html": { delay: 10 } };
   const { info } = await runFull({ threshold: 100 });
   assert.strictEqual(info.downlinkMbps, null);
 });
 
 test("minDownlinkMbps gates 'fast' even when latency is within threshold", async () => {
   stubNavigator({ connection: { downlink: 1.5, effectiveType: "3g" } });
-  behavior = { "apple.com/favicon": { delay: 10 } };
+  behavior = { "success.html": { delay: 10 } };
   const { fast } = await runFull({ threshold: 100, minDownlinkMbps: 5 });
   assert.strictEqual(fast, false);
 });
