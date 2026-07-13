@@ -115,9 +115,9 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
   const active = getDefaultProbes();
   const all = getDefaultProbes({ autoRegion: false });
 
-  assert.strictEqual(active.length, 19);
+  assert.strictEqual(active.length, 20);
   assert.ok(active.every((probe) => probe.region === null));
-  assert.strictEqual(all.length, 30);
+  assert.strictEqual(all.length, 28);
   assert.deepStrictEqual(
     [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
     ["China", "Iran", "Russia / CIS", "Turkmenistan"]
@@ -128,9 +128,6 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
       "https://www.baidu.com/favicon.ico",
       "https://www.baidu.com/robots.txt",
       "https://www.alibaba.com/favicon.ico",
-      "https://s.alicdn.com/@g/ife/common-icon/0.0.1/icon/favicon-v1.ico",
-      "https://s.alicdn.com/@xconfig/callapp/renderCallAppVersion",
-      "https://s.alicdn.com/@xconfig/m_header/renderVersion",
       "https://www.alibaba.com/atlassitemapsitenet/static/www_alibaba_com/robots.txt"
     ]
   );

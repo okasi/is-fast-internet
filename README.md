@@ -10,7 +10,7 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 
 - ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
 - 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
-- 🗺️ **19 global + 11 regional probes** — Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
+- 🗺️ **20 global + 8 regional probes** — Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
 - 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
@@ -129,6 +129,7 @@ Always fires (small, global):
 | Probe |
 | --- |
 | `yandex.com/favicon.ico` — not gated to Russian timezones since Yandex (Maps, Browser, Taxi) has real usage in Turkiye and elsewhere too |
+| `yandex.com/robots.txt` |
 | `api.cloudflare.com/cdn-cgi/trace` — Cloudflare's own recommended connectivity-diagnostic endpoint |
 | `1.1.1.1/cdn-cgi/trace` — Cloudflare's anycast resolver connectivity diagnostic endpoint |
 | `www.akamai.com/favicon.ico` — major CDN operator with edge presence worldwide |
@@ -151,7 +152,7 @@ Fires only when the browser's timezone matches (see [Region detection](#region-d
 
 | Region | Probe |
 | --- | --- |
-| China | `www.baidu.com/favicon.ico`, `www.baidu.com/robots.txt`, `www.alibaba.com/favicon.ico`, `s.alicdn.com/@g/ife/common-icon/0.0.1/icon/favicon-v1.ico`, `s.alicdn.com/@xconfig/callapp/renderCallAppVersion`, `s.alicdn.com/@xconfig/m_header/renderVersion`, `www.alibaba.com/atlassitemapsitenet/static/www_alibaba_com/robots.txt` |
+| China | `www.baidu.com/favicon.ico`, `www.baidu.com/robots.txt`, `www.alibaba.com/favicon.ico`, `www.alibaba.com/atlassitemapsitenet/static/www_alibaba_com/robots.txt` |
 | Russia / CIS | `vk.com/favicon.ico`, `dzen.ru/favicon.ico` |
 | Iran | `www.aparat.com/favicon.ico` |
 | Turkmenistan | `turkmenportal.com/favicon.ico` |
@@ -177,7 +178,7 @@ By default (`autoRegion: true`), the region-specific probes above only fire
 when `Intl.DateTimeFormat().resolvedOptions().timeZone` matches that region
 (e.g. `Asia/Shanghai` → Baidu/Alibaba, `Europe/Moscow` → VK, `Asia/Tehran` →
 Aparat, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
-only ever fires the 19 global probes across Yandex, Cloudflare, Akamai,
+only ever fires the 20 global probes across Yandex, Cloudflare, Akamai,
 AWS, Firefox, Microsoft, and independent IP/privacy diagnostic endpoints.
 
 This is a latency/traffic optimization, not a correctness requirement — a
