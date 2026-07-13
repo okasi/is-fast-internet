@@ -1,6 +1,6 @@
 {
   "name": "is-fast-internet",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Zero-dependency browser check for fast internet — reliable even in censored countries",
   "type": "module",
   "repository": {
