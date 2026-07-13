@@ -10,7 +10,7 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 
 - ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
 - 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
-- 🗺️ **35 global + 6 regional probes** — Apple, Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
+- 🗺️ **25 global + 6 regional probes** — Apple, Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
 - 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
@@ -138,20 +138,19 @@ Always fires (small, global):
 | `checkip.global.api.aws/` |
 | `checkip.amazonaws.com/` |
 | `detectportal.firefox.com/canonical.html` — HTTPS |
-| `www.msftconnecttest.com/connecttest.txt` — HTTP |
+| `www.msftconnecttest.com/connecttest.txt` — HTTPS |
 | `edge.microsoft.com/captiveportal/generate_204` |
 | `am.i.mullvad.net/json` |
-| `tls.peet.ws/api/all`, `tls.peet.ws/api/clean` |
+| `tls.peet.ws/api/clean` |
 | `test.nextdns.io/` |
 | `www.howsmyssl.com/a/check` |
-| `httpbin.org/ip`, `httpbin.org/headers`, `httpbin.org/anything` |
-| `api.ipify.org`, `api.ipify.org?format=json`, `api64.ipify.org?format=json` |
-| `ifconfig.co/ip`, `ifconfig.co/json`, `ifconfig.io` |
+| `httpbin.org/headers` |
+| `api.ipify.org?format=json` |
+| `ifconfig.co/json`, `ifconfig.io` |
 | `api.myip.com/` |
-| `tools.keycdn.com/geo.json?host=1.1.1.1` |
 | `captive.apple.com/hotspot-detect.html` — HTTP |
-| `ipapi.co/json`, `get.geojs.io/v1/ip/geo.json`, `reallyfreegeoip.org/json/` |
-| `api.seeip.org/geoip`, `free.freeipapi.com/api/json`, `api.ip.sb/geoip` |
+| `get.geojs.io/v1/ip/geo.json`, `reallyfreegeoip.org/json/` |
+| `api.seeip.org/geoip` |
 
 Fires only when the browser's timezone matches (see [Region detection](#region-detection)):
 
@@ -183,7 +182,7 @@ By default (`autoRegion: true`), the region-specific probes above only fire
 when `Intl.DateTimeFormat().resolvedOptions().timeZone` matches that region
 (e.g. `Asia/Shanghai` → Baidu/Alibaba, `Europe/Moscow` → VK, `Asia/Tehran` →
 Aparat, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
-only ever fires the 35 global probes across Apple, Yandex, Cloudflare, Akamai,
+only ever fires the 25 global probes across Apple, Yandex, Cloudflare, Akamai,
 AWS, Firefox, Microsoft, and independent IP/privacy diagnostic endpoints.
 
 This is a latency/traffic optimization, not a correctness requirement — a

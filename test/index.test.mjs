@@ -115,9 +115,9 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
   const active = getDefaultProbes();
   const all = getDefaultProbes({ autoRegion: false });
 
-  assert.strictEqual(active.length, 35);
+  assert.strictEqual(active.length, 25);
   assert.ok(active.every((probe) => probe.region === null));
-  assert.strictEqual(all.length, 41);
+  assert.strictEqual(all.length, 31);
   assert.deepStrictEqual(
     [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
     ["China", "Iran", "Russia / CIS", "Turkmenistan"]
@@ -206,7 +206,7 @@ test("Dzen does not fire for a non-Russia timezone", async () => {
 });
 
 test("non-image endpoints (text/HTML) work as probes via fetch(no-cors)", async () => {
-  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "success.html", "httpbin.org/anything"]) {
+  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "success.html", "httpbin.org/headers"]) {
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }
