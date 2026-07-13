@@ -12,6 +12,7 @@ const GLOBAL_PROBES = [
 
 const REGION_PROBES = [
   {
+    demoLabel: "China · normally geo-based",
     probes: [
       "https://www.baidu.com/favicon.ico",
       "https://www.alibaba.com/favicon.ico",
@@ -32,10 +33,12 @@ const REGION_PROBES = [
     ]
   },
   {
+    demoLabel: "Iran · normally geo-based",
     probes: ["https://www.aparat.com/favicon.ico", "https://www.digikala.com/favicon.ico"],
     timezones: ["Asia/Tehran"]
   },
   {
+    demoLabel: "Turkmenistan · normally geo-based",
     probes: ["https://turkmenportal.com/favicon.ico"],
     timezones: ["Asia/Ashgabat"]
   }
@@ -81,8 +84,12 @@ function activeProbes() {
   }
 
   return [
-    ...GLOBAL_PROBES,
-    ...REGION_PROBES.flatMap(({ probes, timezones }) => timezones.includes(timeZone) ? probes : [])
+    ...GLOBAL_PROBES.map((url) => ({ url, demoLabel: null })),
+    ...REGION_PROBES.flatMap(({ probes, timezones, demoLabel }) => (
+      demoLabel || timezones.includes(timeZone)
+        ? probes.map((url) => ({ url, demoLabel: demoLabel ?? null }))
+        : []
+    ))
   ];
 }
 
@@ -137,6 +144,7 @@ function renderProbeLedger(records = probeRecords) {
   [...records].sort(compareProbes).forEach((probe, index) => {
     const row = document.createElement("li");
     const number = document.createElement("span");
+    const endpoint = document.createElement("span");
     const address = document.createElement("a");
     const state = document.createElement("span");
 
@@ -148,6 +156,14 @@ function renderProbeLedger(records = probeRecords) {
     address.target = "_blank";
     address.rel = "noreferrer";
     address.textContent = probe.url.href;
+    endpoint.className = "probe-endpoint";
+    endpoint.append(address);
+    if (probe.demoLabel) {
+      const label = document.createElement("span");
+      label.className = "probe-geo-label";
+      label.textContent = probe.demoLabel;
+      endpoint.append(label);
+    }
     state.className = "probe-state";
     state.textContent = probe.state === "responded"
       ? `${Math.round(probe.latency)}ms`
@@ -157,7 +173,7 @@ function renderProbeLedger(records = probeRecords) {
           ? "timed out"
         : probe.state;
 
-    row.append(number, address, state);
+    row.append(number, endpoint, state);
     fragment.append(row);
   });
 
@@ -201,8 +217,9 @@ async function checkAllProbes(signal) {
     stop("timeout");
   }, SCAN_TIMEOUT);
 
-  const records = activeProbes().map((url, order) => ({
+  const records = activeProbes().map(({ url, demoLabel }, order) => ({
     url: new URL(url),
+    demoLabel,
     order,
     state: "pending",
     latency: null,

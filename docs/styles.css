@@ -103,8 +103,10 @@ h1 em { font-style: normal; color: var(--green); }
 #probe-list li { min-height: 30px; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 9px; border-top: 1px solid rgba(222, 244, 231, .075); color: #aab6b0; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 #probe-list li:first-child { border-top: 0; }
 #probe-list .probe-index { color: #58665f; }
-#probe-list .probe-address { min-width: 0; overflow-wrap: anywhere; padding: 6px 0; color: #aab6b0; text-decoration: underline; text-decoration-color: rgba(186,252,71,.35); text-underline-offset: 3px; }
+#probe-list .probe-endpoint { min-width: 0; }
+#probe-list .probe-address { display: block; min-width: 0; overflow-wrap: anywhere; padding: 6px 0; color: #aab6b0; text-decoration: underline; text-decoration-color: rgba(186,252,71,.35); text-underline-offset: 3px; }
 #probe-list .probe-address:hover { color: var(--green); text-decoration-color: currentColor; }
+#probe-list .probe-geo-label { display: block; margin: -2px 0 5px; color: var(--purple); font-size: 9px; letter-spacing: .04em; }
 #probe-list .probe-state { display: flex; align-items: center; gap: 6px; color: #8d9a94; }
 #probe-list .probe-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #738079; }
 #probe-list li[data-state="responded"] .probe-state { color: var(--green); }
