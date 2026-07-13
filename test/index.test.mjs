@@ -170,10 +170,12 @@ test("VK stays Russia-region-gated (does not fire for Turkiye)", async () => {
   restore();
 });
 
-test("Cloudflare/Akamai fire as part of the global set", async () => {
+test("Cloudflare trace endpoints and Akamai fire as part of the global set", async () => {
   const restore = stubTimeZone("America/Chicago");
-  behavior = { akamai: { delay: 20 } };
-  assert.strictEqual(await run({ threshold: 100 }), true);
+  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "akamai"]) {
+    behavior = { [key]: { delay: 20 } };
+    assert.strictEqual(await run({ threshold: 100 }), true, `${key} should fire globally`);
+  }
   restore();
 });
 
@@ -192,7 +194,7 @@ test("Dzen does not fire for a non-Russia timezone", async () => {
 });
 
 test("non-image endpoints (text/HTML) work as probes via fetch(no-cors)", async () => {
-  for (const key of ["cdn-cgi/trace", "success.html", "bing.com/robots.txt"]) {
+  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "success.html", "bing.com/robots.txt"]) {
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }

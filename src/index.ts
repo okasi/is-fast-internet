@@ -77,6 +77,7 @@ const GLOBAL_PROBES = [
   "https://www.apple.com/library/test/success.html",
   "https://yandex.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
+  "https://1.1.1.1/cdn-cgi/trace",
   "https://www.akamai.com/favicon.ico"
 ] as const;
 
