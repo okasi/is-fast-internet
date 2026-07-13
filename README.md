@@ -148,7 +148,7 @@ Always fires (small, global):
 | `api.ipify.org?format=json` |
 | `ifconfig.co/json`, `ifconfig.io` |
 | `api.myip.com/` |
-| `captive.apple.com/hotspot-detect.html` — HTTP |
+| `captive.apple.com/hotspot-detect.html` — HTTPS |
 | `get.geojs.io/v1/ip/geo.json`, `reallyfreegeoip.org/json/` |
 | `api.seeip.org/geoip` |
 

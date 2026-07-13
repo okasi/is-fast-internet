@@ -103,7 +103,7 @@ const GLOBAL_PROBES = [
   "https://ifconfig.co/json",
   "https://ifconfig.io",
   "https://api.myip.com/",
-  "http://captive.apple.com/hotspot-detect.html",
+  "https://captive.apple.com/hotspot-detect.html",
   "https://get.geojs.io/v1/ip/geo.json",
   "https://reallyfreegeoip.org/json/",
   "https://api.seeip.org/geoip"
