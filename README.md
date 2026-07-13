@@ -10,7 +10,7 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 
 - ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
 - 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
-- 🗺️ **13 global + 6 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai, AWS, Firefox, and Microsoft + local heroes
+- 🗺️ **35 global + 6 regional probes** — Apple, Yandex, Cloudflare, Akamai, AWS, Firefox, Microsoft, and IP/privacy diagnostics + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
 - 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
@@ -128,7 +128,6 @@ Always fires (small, global):
 
 | Probe |
 | --- |
-| `www.bing.com/robots.txt` |
 | `www.apple.com/favicon.ico` |
 | `www.apple.com/library/test/success.html` — the same endpoint iOS/macOS uses for its own captive-portal / internet check |
 | `yandex.com/favicon.ico` — not gated to Russian timezones since Yandex (Maps, Browser, Taxi) has real usage in Turkiye and elsewhere too |
@@ -138,9 +137,21 @@ Always fires (small, global):
 | `whatismyip.akamai.com/advanced?debug` |
 | `checkip.global.api.aws/` |
 | `checkip.amazonaws.com/` |
-| `detectportal.firefox.com/canonical.html` |
-| `www.msftconnecttest.com/connecttest.txt` |
+| `detectportal.firefox.com/canonical.html` — HTTPS |
+| `www.msftconnecttest.com/connecttest.txt` — HTTP |
 | `edge.microsoft.com/captiveportal/generate_204` |
+| `am.i.mullvad.net/json` |
+| `tls.peet.ws/api/all`, `tls.peet.ws/api/clean` |
+| `test.nextdns.io/` |
+| `www.howsmyssl.com/a/check` |
+| `httpbin.org/ip`, `httpbin.org/headers`, `httpbin.org/anything` |
+| `api.ipify.org`, `api.ipify.org?format=json`, `api64.ipify.org?format=json` |
+| `ifconfig.co/ip`, `ifconfig.co/json`, `ifconfig.io` |
+| `api.myip.com/` |
+| `tools.keycdn.com/geo.json?host=1.1.1.1` |
+| `captive.apple.com/hotspot-detect.html` — HTTP |
+| `ipapi.co/json`, `get.geojs.io/v1/ip/geo.json`, `reallyfreegeoip.org/json/` |
+| `api.seeip.org/geoip`, `free.freeipapi.com/api/json`, `api.ip.sb/geoip` |
 
 Fires only when the browser's timezone matches (see [Region detection](#region-detection)):
 
@@ -172,8 +183,8 @@ By default (`autoRegion: true`), the region-specific probes above only fire
 when `Intl.DateTimeFormat().resolvedOptions().timeZone` matches that region
 (e.g. `Asia/Shanghai` → Baidu/Alibaba, `Europe/Moscow` → VK, `Asia/Tehran` →
 Aparat, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
-only ever fires the 13 global probes (Bing, Apple ×2, Yandex, Cloudflare ×2,
-Akamai ×2, AWS ×2, Firefox, Microsoft ×2).
+only ever fires the 35 global probes across Apple, Yandex, Cloudflare, Akamai,
+AWS, Firefox, Microsoft, and independent IP/privacy diagnostic endpoints.
 
 This is a latency/traffic optimization, not a correctness requirement — a
 mismatched timezone (VPN, misconfigured system clock) just means the

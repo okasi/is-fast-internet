@@ -65,13 +65,8 @@ test("a probe slower than the threshold resolves to false", async () => {
 
 test("every probe erroring settles false, early, before the timeout", async () => {
   behavior = Object.fromEntries(
-    [
-      "bing", "apple.com/favicon", "success.html",
-      "yandex.com/favicon",
-      "cdn-cgi/trace", "akamai", "baidu", "alibaba", "vk", "dzen",
-      "aparat", "turkmen", "checkip.global.api.aws", "checkip.amazonaws",
-      "detectportal.firefox", "msftconnecttest", "edge.microsoft"
-    ].map((k) => [k, { error: true, delay: 20 }])
+    getDefaultProbes({ autoRegion: false })
+      .map(({ url }) => [url, { error: true, delay: 20 }])
   );
   const t0 = Date.now();
   assert.strictEqual(await run({ threshold: 500, autoRegion: false }), false);
@@ -86,7 +81,7 @@ test("all probes hanging triggers the early-exit timeout at ~3x threshold", asyn
 });
 
 test("callback fires exactly once even when many probes resolve", async () => {
-  behavior = { bing: { delay: 10 }, baidu: { delay: 15 }, "yandex.com/favicon": { delay: 20 } };
+  behavior = { "apple.com/favicon": { delay: 10 }, baidu: { delay: 15 }, "yandex.com/favicon": { delay: 20 } };
   let calls = 0;
   isFastInternet(() => calls++, { autoRegion: false });
   await new Promise((r) => setTimeout(r, 200));
@@ -120,9 +115,9 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
   const active = getDefaultProbes();
   const all = getDefaultProbes({ autoRegion: false });
 
-  assert.strictEqual(active.length, 13);
+  assert.strictEqual(active.length, 35);
   assert.ok(active.every((probe) => probe.region === null));
-  assert.strictEqual(all.length, 19);
+  assert.strictEqual(all.length, 41);
   assert.deepStrictEqual(
     [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
     ["China", "Iran", "Russia / CIS", "Turkmenistan"]
@@ -145,7 +140,7 @@ test("autoRegion adds the region probe for a matching timezone", async () => {
 });
 
 test("info.latency reflects the winning probe's round-trip time", async () => {
-  behavior = { bing: { delay: 40 } };
+  behavior = { "apple.com/favicon": { delay: 40 } };
   const { fast, info } = await runFull({ threshold: 100 });
   assert.strictEqual(fast, true);
   assert.ok(Math.abs(info.latency - 40) <= 15);
@@ -153,7 +148,7 @@ test("info.latency reflects the winning probe's round-trip time", async () => {
 
 test("info reads downlinkMbps/effectiveType from navigator.connection", async () => {
   stubNavigator({ connection: { downlink: 12.5, effectiveType: "4g" } });
-  behavior = { bing: { delay: 10 } };
+  behavior = { "apple.com/favicon": { delay: 10 } };
   const { info } = await runFull({ threshold: 100 });
   assert.strictEqual(info.downlinkMbps, 12.5);
   assert.strictEqual(info.effectiveType, "4g");
@@ -161,14 +156,14 @@ test("info reads downlinkMbps/effectiveType from navigator.connection", async ()
 
 test("downlinkMbps is null when the Network Information API is unavailable", async () => {
   stubNavigator({});
-  behavior = { bing: { delay: 10 } };
+  behavior = { "apple.com/favicon": { delay: 10 } };
   const { info } = await runFull({ threshold: 100 });
   assert.strictEqual(info.downlinkMbps, null);
 });
 
 test("minDownlinkMbps gates 'fast' even when latency is within threshold", async () => {
   stubNavigator({ connection: { downlink: 1.5, effectiveType: "3g" } });
-  behavior = { bing: { delay: 10 } };
+  behavior = { "apple.com/favicon": { delay: 10 } };
   const { fast } = await runFull({ threshold: 100, minDownlinkMbps: 5 });
   assert.strictEqual(fast, false);
 });
@@ -187,15 +182,11 @@ test("VK stays Russia-region-gated (does not fire for Turkiye)", async () => {
   restore();
 });
 
-test("Cloudflare, Akamai, AWS, Firefox, and Microsoft probes fire globally", async () => {
+test("all global default probes fire regardless of timezone", async () => {
   const restore = stubTimeZone("America/Chicago");
-  for (const key of [
-    "api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace",
-    "www.akamai.com/favicon", "whatismyip.akamai.com", "checkip.global.api.aws",
-    "checkip.amazonaws", "detectportal.firefox", "msftconnecttest", "edge.microsoft"
-  ]) {
-    behavior = { [key]: { delay: 20 } };
-    assert.strictEqual(await run({ threshold: 100 }), true, `${key} should fire globally`);
+  for (const { url } of getDefaultProbes({ autoRegion: false }).filter(({ region }) => region === null)) {
+    behavior = { [url]: { delay: 20 } };
+    assert.strictEqual(await run({ threshold: 100 }), true, `${url} should fire globally`);
   }
   restore();
 });
@@ -215,7 +206,7 @@ test("Dzen does not fire for a non-Russia timezone", async () => {
 });
 
 test("non-image endpoints (text/HTML) work as probes via fetch(no-cors)", async () => {
-  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "success.html", "bing.com/robots.txt"]) {
+  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "success.html", "httpbin.org/anything"]) {
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }

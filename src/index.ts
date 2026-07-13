@@ -82,7 +82,6 @@ interface NavigatorWithConnection extends Navigator {
 }
 
 const GLOBAL_PROBES = [
-  "https://www.bing.com/robots.txt",
   "https://www.apple.com/favicon.ico",
   "https://www.apple.com/library/test/success.html",
   "https://yandex.com/favicon.ico",
@@ -92,9 +91,32 @@ const GLOBAL_PROBES = [
   "https://whatismyip.akamai.com/advanced?debug",
   "https://checkip.global.api.aws/",
   "https://checkip.amazonaws.com/",
-  "http://detectportal.firefox.com/canonical.html",
-  "https://www.msftconnecttest.com/connecttest.txt",
-  "https://edge.microsoft.com/captiveportal/generate_204"
+  "https://detectportal.firefox.com/canonical.html",
+  "http://www.msftconnecttest.com/connecttest.txt",
+  "https://edge.microsoft.com/captiveportal/generate_204",
+  "https://am.i.mullvad.net/json",
+  "https://tls.peet.ws/api/all",
+  "https://tls.peet.ws/api/clean",
+  "https://test.nextdns.io/",
+  "https://www.howsmyssl.com/a/check",
+  "https://httpbin.org/ip",
+  "https://httpbin.org/headers",
+  "https://httpbin.org/anything",
+  "https://api.ipify.org",
+  "https://api.ipify.org?format=json",
+  "https://api64.ipify.org?format=json",
+  "https://ifconfig.co/ip",
+  "https://ifconfig.co/json",
+  "https://ifconfig.io",
+  "https://api.myip.com/",
+  "https://tools.keycdn.com/geo.json?host=1.1.1.1",
+  "http://captive.apple.com/hotspot-detect.html",
+  "https://ipapi.co/json",
+  "https://get.geojs.io/v1/ip/geo.json",
+  "https://reallyfreegeoip.org/json/",
+  "https://api.seeip.org/geoip",
+  "https://free.freeipapi.com/api/json",
+  "https://api.ip.sb/geoip"
 ] as const;
 
 const REGION_PROBES: RegionProbeGroup[] = [
