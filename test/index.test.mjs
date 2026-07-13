@@ -17,6 +17,11 @@ const { default: isFastInternet, checkInternet, getDefaultProbes } = await impor
 // in for a hard-blocked domain whose connection just hangs.
 let behavior = {};
 globalThis.fetch = function (url) {
+  if (url.includes("speed.cloudflare.com/__down?bytes=65536")) {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve({ arrayBuffer: () => new ArrayBuffer(64 * 1024) }), 20);
+    });
+  }
   for (const [key, spec] of Object.entries(behavior)) {
     if (url.includes(key)) {
       return new Promise((resolve, reject) => {
@@ -224,6 +229,7 @@ test("checkInternet returns rich Promise-based diagnostics", async () => {
   const result = await checkInternet({
     images: ["https://fast.example/probe", "https://blocked.example/probe"],
     threshold: 100,
+    downloadBytes: 0,
     fetch: (url) => url.toString().includes("fast.example")
       ? new Promise((resolve) => setTimeout(() => resolve({}), 15))
       : new Promise(() => {})
@@ -243,6 +249,7 @@ test("an explicit timeout reports why the check failed", async () => {
     images: ["https://blocked.example/probe"],
     threshold: 1_000,
     timeout: 20,
+    downloadBytes: 0,
     fetch: () => new Promise(() => {})
   });
 
@@ -257,6 +264,7 @@ test("settling aborts losing probe requests", async () => {
   const result = await checkInternet({
     images: ["https://winner.example/probe", "https://loser.example/probe"],
     threshold: 100,
+    downloadBytes: 0,
     fetch: (url, init) => {
       if (url.toString().includes("winner.example")) {
         return new Promise((resolve) => setTimeout(() => resolve({}), 10));
@@ -278,6 +286,7 @@ test("an AbortSignal resolves with an aborted diagnostic", async () => {
   const controller = new AbortController();
   const pending = checkInternet({
     images: ["https://blocked.example/probe"],
+    downloadBytes: 0,
     signal: controller.signal,
     fetch: () => new Promise(() => {})
   });
@@ -312,6 +321,7 @@ test("cache busting preserves URL fragments", async () => {
   let requestedUrl;
   await checkInternet({
     image: "https://example.com/probe?client=test#section",
+    downloadBytes: 0,
     fetch: (url) => {
       requestedUrl = url.toString();
       return Promise.resolve({});
@@ -327,4 +337,175 @@ test("invalid numeric options reject with a useful error", async () => {
     checkInternet({ threshold: -1, images: ["https://example.com"] }),
     { name: "RangeError", message: /threshold/ }
   );
+});
+
+test("the default capped download reports a completed transfer sample", async () => {
+  const bytes = 64 * 1024;
+  const requestedUrls = [];
+  const result = await checkInternet({
+    images: ["https://fast.example/probe"],
+    threshold: 100,
+    fetch: (url) => {
+      requestedUrls.push(url.toString());
+      if (url.toString().includes("fast.example")) {
+        return new Promise((resolve) => setTimeout(() => resolve({}), 10));
+      }
+      return new Promise((resolve) => setTimeout(() => resolve({
+        arrayBuffer: () => new ArrayBuffer(bytes)
+      }), 20));
+    }
+  });
+
+  assert.ok(requestedUrls.includes("https://speed.cloudflare.com/__down?bytes=65536"));
+  assert.strictEqual(result.downloadedBytes, bytes);
+  assert.ok(result.downloadMbps > 0);
+  assert.strictEqual(result.reason, "fast");
+});
+
+test("minDownloadMbps can gate a completed capped download", async () => {
+  const result = await checkInternet({
+    images: ["https://fast.example/probe"],
+    threshold: 100,
+    minDownloadMbps: 100_000,
+    fetch: (url) => url.toString().includes("fast.example")
+      ? Promise.resolve({})
+      : Promise.resolve({ arrayBuffer: () => new ArrayBuffer(64 * 1024) })
+  });
+
+  assert.strictEqual(result.isFast, false);
+  assert.strictEqual(result.reason, "download");
+});
+
+test("checkInternet returns headers, bodies, JSON analysis, and a Markdown table for every probe", async () => {
+  const result = await checkInternet({
+    images: ["https://json.example/probe", "https://text.example/probe"],
+    threshold: 100,
+    downloadBytes: 0,
+    fetch: (url) => {
+      if (url.toString().includes("json.example")) {
+        return Promise.resolve(new Response(JSON.stringify({ region: "eu", healthy: true }), {
+          status: 201,
+          headers: {
+            "content-type": "application/json",
+            "x-probe": "json"
+          }
+        }));
+      }
+      return Promise.resolve(new Response("ready | steady", {
+        status: 202,
+        headers: {
+          "content-type": "text/plain",
+          "x-probe": "text"
+        }
+      }));
+    }
+  });
+
+  assert.strictEqual(result.probeResults.length, 2);
+  assert.deepStrictEqual(result.probeResults.map((probe) => probe.state), ["responded", "responded"]);
+  assert.deepStrictEqual(result.probeResults[0].response.json, { region: "eu", healthy: true });
+  assert.strictEqual(result.probeResults[0].response.status, 201);
+  assert.strictEqual(result.probeResults[0].response.headers["x-probe"], "json");
+  assert.strictEqual(result.probeResults[1].response.body, "ready | steady");
+  assert.match(result.markdownSummary, /^\| Endpoint \| State \| Latency/m);
+  assert.match(result.markdownSummary, /application\/json/);
+  assert.match(result.markdownSummary, /ready \\| steady/);
+});
+
+test("checkInternet retries opaque probes with CORS to collect exposed response data", async () => {
+  const result = await checkInternet({
+    image: "https://cors.example/probe",
+    threshold: 100,
+    downloadBytes: 0,
+    fetch: (_url, init) => {
+      if (init?.mode === "cors") {
+        return Promise.resolve(new Response("diagnostic payload", {
+          headers: { "content-type": "text/plain", "x-probe": "cors" }
+        }));
+      }
+      return Promise.resolve({ type: "opaque" });
+    }
+  });
+
+  assert.strictEqual(result.probeResults[0].state, "responded");
+  assert.strictEqual(result.probeResults[0].response.mode, "cors");
+  assert.strictEqual(result.probeResults[0].response.readable, true);
+  assert.strictEqual(result.probeResults[0].response.body, "diagnostic payload");
+  assert.strictEqual(result.probeResults[0].response.headers["x-probe"], "cors");
+});
+
+test("checkInternet records probes that do not finish before the diagnostic deadline", async () => {
+  const result = await checkInternet({
+    images: ["https://fast.example/probe", "https://hanging.example/probe"],
+    threshold: 100,
+    timeout: 30,
+    downloadBytes: 0,
+    fetch: (url) => url.toString().includes("fast.example")
+      ? Promise.resolve(new Response("ok"))
+      : new Promise(() => {})
+  });
+
+  assert.strictEqual(result.isFast, true);
+  assert.strictEqual(result.reason, "fast");
+  assert.deepStrictEqual(result.probeResults.map((probe) => probe.state), ["responded", "timeout"]);
+  assert.match(result.markdownSummary, /\| timeout \|/);
+});
+
+test("onProbeResult streams each finalized diagnostic without changing the result", async () => {
+  const observed = [];
+  const result = await checkInternet({
+    images: ["https://fast.example/probe", "https://hanging.example/probe"],
+    timeout: 30,
+    downloadBytes: 0,
+    onProbeResult: (probe) => observed.push(probe),
+    fetch: (url) => url.toString().includes("fast.example")
+      ? Promise.resolve(new Response("ip=203.0.113.42\ntls=TLSv1.3"))
+      : new Promise(() => {})
+  });
+
+  assert.strictEqual(result.isFast, true);
+  assert.deepStrictEqual(observed.map((probe) => probe.state), ["responded", "timeout"]);
+  assert.strictEqual(observed[0].insights.publicIp, "203.0.113.42");
+});
+
+test("checkInternet extracts useful header and body signals into probe insights", async () => {
+  const result = await checkInternet({
+    images: ["https://trace.example/probe", "https://headers.example/probe"],
+    downloadBytes: 0,
+    fetch: (url) => url.toString().includes("trace.example")
+      ? Promise.resolve(new Response(
+        "ip=203.0.113.42\nloc=SE\ncolo=ARN\ntls=TLSv1.3\nhttp=h2",
+        {
+          headers: {
+            "cf-ray": "abc123-ARN",
+            "cf-cache-status": "HIT",
+            "cache-control": "max-age=60",
+            "server-timing": "cfL4;desc=?proto=TCP",
+            "access-control-allow-origin": "*",
+            "access-control-expose-headers": "cf-ray, cf-cache-status",
+            "x-ratelimit-remaining": "99"
+          }
+        }
+      ))
+      : Promise.resolve(new Response(JSON.stringify({
+        headers: { "User-Agent": "probe-test", Accept: "*/*" }
+      }), { headers: { "content-type": "application/json" } }))
+  });
+
+  const trace = result.probeResults[0].insights;
+  const echoed = result.probeResults[1].insights;
+
+  assert.strictEqual(trace.publicIp, "203.0.113.42");
+  assert.strictEqual(trace.location.country, "SE");
+  assert.strictEqual(trace.tlsVersion, "TLSv1.3");
+  assert.strictEqual(trace.httpVersion, "h2");
+  assert.strictEqual(trace.edge.provider, "Cloudflare");
+  assert.strictEqual(trace.edge.colo, "ARN");
+  assert.strictEqual(trace.cache.status, "HIT");
+  assert.strictEqual(trace.rateLimit.remaining, "99");
+  assert.ok(trace.summary.includes("Cloudflare edge ARN"));
+  assert.deepStrictEqual(echoed.requestHeaders, { "User-Agent": "probe-test", Accept: "*/*" });
+  assert.match(result.markdownSummary, /Cloudflare edge ARN/);
+  assert.doesNotMatch(result.markdownSummary, /203\.0\.113\.42/);
+  assert.doesNotMatch(result.markdownSummary, /probe-test/);
 });

@@ -3,7 +3,7 @@ const SCAN_TIMEOUT = LATENCY_THRESHOLD * 3;
 const modulePath = location.hostname.endsWith("github.io")
   ? "./is-fast-internet.js"
   : "../dist/index.js";
-const { getDefaultProbes } = await import(modulePath);
+const { checkInternet, getDefaultProbes } = await import(modulePath);
 
 const DEMO_REGIONS = new Set(["China", "Iran", "Turkmenistan"]);
 
@@ -18,6 +18,8 @@ const probesValue = document.querySelector("#probes-value");
 const probesCaption = document.querySelector("#probes-caption");
 const probeSummary = document.querySelector("#probe-summary");
 const probeList = document.querySelector("#probe-list");
+const scanProgress = document.querySelector("#scan-progress");
+const scanProgressBar = document.querySelector("#scan-progress-bar");
 const terminalOutput = document.querySelector("#terminal-output");
 const copyResultButton = document.querySelector("#copy-result");
 const copyCodeButton = document.querySelector("#copy-code");
@@ -27,6 +29,7 @@ const outcomeCopy = {
   fast: ["Network ready", "Responsive enough for the full experience"],
   latency: ["High latency", "Reachable, but responsiveness is limited"],
   downlink: ["Limited bandwidth", "Latency passed; estimated downlink did not"],
+  download: ["Limited bandwidth", "The capped download sample missed its speed gate"],
   timeout: ["Scan timed out", "No endpoint responded before the deadline"],
   unreachable: ["Network unreachable", "Every active endpoint rejected the probe"],
   aborted: ["Scan cancelled", "The check ended before a result was available"]
@@ -48,23 +51,6 @@ function activeProbes() {
     }));
 }
 
-function cacheBustedUrl(url, index) {
-  const probeUrl = new URL(url);
-  probeUrl.searchParams.set("isFastInternet", `${Date.now()}-${index}`);
-  return probeUrl;
-}
-
-function getConnectionInfo() {
-  const connection = navigator.connection ?? navigator.mozConnection ?? navigator.webkitConnection;
-
-  return typeof connection?.downlink === "number"
-    ? {
-        downlinkMbps: connection.downlink,
-        effectiveType: connection.effectiveType ?? null
-      }
-    : { downlinkMbps: null, effectiveType: null };
-}
-
 function compareProbes(left, right) {
   if (left.state === "responded" && right.state === "responded") {
     return left.latency - right.latency || left.order - right.order;
@@ -82,6 +68,9 @@ function renderProbeLedger(records = probeRecords) {
   if (records.length === 0) {
     probeList.innerHTML = '<li class="probe-empty">Every contacted endpoint will appear here.</li>';
     probeSummary.textContent = "Waiting to scan";
+    scanProgressBar.style.setProperty("--scan-progress", "0%");
+    scanProgress.setAttribute("aria-valuenow", "0");
+    scanProgress.setAttribute("aria-valuetext", "No scan started");
     return;
   }
 
@@ -91,9 +80,13 @@ function renderProbeLedger(records = probeRecords) {
   }, {});
   const finished = records.length - (totals.pending ?? 0);
   const unavailable = (totals.failed ?? 0) + (totals["timed-out"] ?? 0) + (totals.cancelled ?? 0);
+  const progress = Math.round((finished / records.length) * 100);
   probeSummary.textContent = finished === records.length
-    ? `${records.length} checked · ${totals.responded ?? 0} reached · ${unavailable} unavailable`
-    : `${records.length} checking · ${totals.pending ?? 0} in flight`;
+    ? `${finished}/${records.length} complete · ${totals.responded ?? 0} reached · ${unavailable} unavailable`
+    : `${finished}/${records.length} complete · ${totals.pending ?? 0} in flight`;
+  scanProgressBar.style.setProperty("--scan-progress", `${progress}%`);
+  scanProgress.setAttribute("aria-valuenow", String(progress));
+  scanProgress.setAttribute("aria-valuetext", `${finished} of ${records.length} endpoints complete`);
 
   const fragment = document.createDocumentFragment();
   [...records].sort(compareProbes).forEach((probe, index) => {
@@ -110,7 +103,9 @@ function renderProbeLedger(records = probeRecords) {
     address.href = probe.url.href;
     address.target = "_blank";
     address.rel = "noreferrer";
-    address.textContent = probe.url.href;
+    address.textContent = probe.url.hostname;
+    address.title = probe.url.href;
+    address.setAttribute("aria-label", `Open probe endpoint ${probe.url.href}`);
     endpoint.className = "probe-endpoint";
     endpoint.append(address);
     if (probe.demoLabel) {
@@ -118,6 +113,13 @@ function renderProbeLedger(records = probeRecords) {
       label.className = "probe-geo-label";
       label.textContent = probe.demoLabel;
       endpoint.append(label);
+    }
+    if (probe.insights.length > 0) {
+      const insight = document.createElement("span");
+      insight.className = "probe-insight";
+      insight.textContent = probe.insights.slice(0, 2).join(" · ");
+      insight.title = probe.error ?? "Derived from readable response headers and body";
+      endpoint.append(insight);
     }
     state.className = "probe-state";
     state.textContent = probe.state === "responded"
@@ -135,90 +137,70 @@ function renderProbeLedger(records = probeRecords) {
   probeList.replaceChildren(fragment);
 }
 
-async function fetchProbe(probe, controller, records, timedOut) {
-  probe.startedAt = performance.now();
+function displayProbeState(state) {
+  return state === "timeout"
+    ? "timed-out"
+    : state === "aborted"
+      ? "cancelled"
+      : state;
+}
 
-  try {
-    await globalThis.fetch(cacheBustedUrl(probe.url.href, probe.order), {
-      mode: "no-cors",
-      cache: "no-store",
-      signal: controller.signal
-    });
-    probe.state = "responded";
-    probe.latency = performance.now() - probe.startedAt;
-  } catch {
-    probe.state = controller.signal.aborted
-      ? timedOut()
-        ? "timed-out"
-        : "cancelled"
-      : "failed";
-  } finally {
-    renderProbeLedger(records);
-  }
+function applyProbeResult(record, probe) {
+  record.state = displayProbeState(probe.state);
+  record.latency = probe.latency;
+  record.insights = probe.insights?.summary ?? [];
+  record.error = probe.error ?? probe.response?.bodyError ?? null;
 }
 
 async function checkAllProbes(signal) {
-  const controller = new AbortController();
-  const startedAt = performance.now();
-  let timedOut = false;
-  const stop = (reason) => controller.abort(reason);
-  const onAbort = () => stop("aborted");
-
-  if (signal.aborted) stop("aborted");
-  else signal.addEventListener("abort", onAbort, { once: true });
-
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    stop("timeout");
-  }, SCAN_TIMEOUT);
-
   const records = activeProbes().map(({ url, demoLabel }, order) => ({
     url: new URL(url),
     demoLabel,
     order,
     state: "pending",
     latency: null,
-    startedAt: null
+    insights: [],
+    error: null
   }));
   probeRecords = records;
   renderProbeLedger(records);
 
-  await Promise.allSettled(records.map((probe) => fetchProbe(probe, controller, records, () => timedOut)));
-  clearTimeout(timeout);
-  signal.removeEventListener("abort", onAbort);
+  const result = await checkInternet({
+    images: records.map((record) => record.url.href),
+    threshold: LATENCY_THRESHOLD,
+    timeout: SCAN_TIMEOUT,
+    signal,
+    downloadBytes: 0,
+    onProbeResult: (probe) => {
+      const record = records.find(({ url }) => url.href === probe.url);
+      if (!record) return;
+      applyProbeResult(record, probe);
+      renderProbeLedger(records);
+    }
+  });
 
-  const responders = records
-    .filter((probe) => probe.state === "responded")
-    .sort(compareProbes);
-  const fastest = responders[0] ?? null;
-  const { downlinkMbps, effectiveType } = getConnectionInfo();
-  const aborted = signal.aborted && !timedOut;
-  const failedProbes = records.filter((probe) => (
-    probe.state === "failed" || probe.state === "timed-out"
-  )).length;
-
-  return {
-    isFast: !aborted && fastest !== null && fastest.latency <= LATENCY_THRESHOLD,
-    reason: aborted
-      ? "aborted"
-      : fastest === null
-        ? timedOut ? "timeout" : "unreachable"
-        : fastest.latency <= LATENCY_THRESHOLD ? "fast" : "latency",
-    latency: fastest?.latency ?? null,
-    probeUrl: fastest?.url.href ?? null,
-    downlinkMbps,
-    effectiveType,
-    attemptedProbes: records.length,
-    failedProbes,
-    duration: Math.max(0, performance.now() - startedAt)
-  };
+  result.probeResults.forEach((probe, index) => applyProbeResult(records[index], probe));
+  renderProbeLedger(records);
+  return result;
 }
 
 function setScanning(scanning) {
   consoleShell.classList.toggle("scanning", scanning);
   consoleShell.classList.remove("complete");
+  probeList.setAttribute("aria-busy", String(scanning));
   runButton.disabled = scanning;
   runButton.querySelector("span").textContent = scanning ? "Scanning network…" : "Run again";
+}
+
+function revealMobileConsole() {
+  if (!window.matchMedia("(max-width: 640px)").matches) return;
+
+  requestAnimationFrame(() => {
+    consoleShell.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start"
+    });
+  });
 }
 
 function formatMilliseconds(value) {
@@ -228,21 +210,30 @@ function formatMilliseconds(value) {
 function renderResult(result) {
   latestResult = result;
   const [title, detail] = outcomeCopy[result.reason] ?? ["Check complete", "Network diagnostics are ready"];
+  const insightCount = result.probeResults.filter((probe) => probe.insights?.summary.length > 0).length;
+  const highlights = result.probeResults
+    .filter((probe) => probe.insights?.summary.length > 0)
+    .slice(0, 3)
+    .map((probe) => ({ endpoint: new URL(probe.url).hostname, signals: probe.insights.summary }));
 
   statusTitle.textContent = title;
-  statusDetail.textContent = detail;
+  statusDetail.textContent = insightCount
+    ? `${detail} · ${insightCount} endpoint insight${insightCount === 1 ? "" : "s"}`
+    : detail;
   latencyValue.textContent = formatMilliseconds(result.latency);
   latencyCaption.textContent = result.latency === null ? "no response" : "round trip";
   downlinkValue.textContent = result.downlinkMbps === null ? "N/A" : `${result.downlinkMbps} Mbps`;
   probesValue.textContent = `${result.attemptedProbes}`;
-  probesCaption.textContent = result.failedProbes
-    ? `${result.failedProbes} failed`
+  const unavailable = result.probeResults.filter((probe) => probe.state !== "responded").length;
+  probesCaption.textContent = unavailable
+    ? `${unavailable} unavailable`
     : "all reachable";
   terminalOutput.textContent = JSON.stringify({
     isFast: result.isFast,
     reason: result.reason,
     latency: result.latency === null ? null : Math.round(result.latency),
-    duration: Math.round(result.duration)
+    duration: Math.round(result.duration),
+    insights: highlights
   });
   copyResultButton.disabled = false;
   consoleShell.classList.add("complete");
@@ -253,12 +244,13 @@ async function runLiveCheck() {
   const controller = new AbortController();
   activeController = controller;
   setScanning(true);
+  revealMobileConsole();
   statusTitle.textContent = "Scanning endpoints";
-  statusDetail.textContent = "Waiting for every active endpoint, then ranking the fastest";
+  statusDetail.textContent = "Reading reachable endpoint signals, then ranking the fastest";
   latencyValue.textContent = "…";
   downlinkValue.textContent = "…";
   probesValue.textContent = "…";
-  terminalOutput.textContent = "await Promise.allSettled(probes)";
+  terminalOutput.textContent = "await checkInternet({ onProbeResult })";
   copyResultButton.disabled = true;
 
   try {
