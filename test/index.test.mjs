@@ -66,8 +66,8 @@ test("a probe slower than the threshold resolves to false", async () => {
 test("every probe erroring settles false, early, before the timeout", async () => {
   behavior = Object.fromEntries(
     [
-      "bing", "apple.com/favicon", "success.html", "app-site-association",
-      "yandex.com/favicon", "yandex.com/internet", "cloudflare.com/favicon",
+      "bing", "apple.com/favicon", "success.html",
+      "yandex.com/favicon",
       "cdn-cgi/trace", "akamai", "baidu", "alibaba", "vk", "dzen",
       "aparat", "digikala", "turkmen"
     ].map((k) => [k, { error: true, delay: 20 }])
@@ -192,7 +192,7 @@ test("Dzen does not fire for a non-Russia timezone", async () => {
 });
 
 test("non-image endpoints (text/HTML/JSON) work as probes via fetch(no-cors)", async () => {
-  for (const key of ["cdn-cgi/trace", "success.html", "app-site-association", "yandex.com/internet"]) {
+  for (const key of ["cdn-cgi/trace", "success.html", "bing.com/HPImageArchive"]) {
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }

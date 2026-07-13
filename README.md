@@ -10,7 +10,7 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 
 - ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
 - 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
-- 🗺️ **9 global + 8 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai + local heroes
+- 🗺️ **6 global + 8 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
 - 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
@@ -124,13 +124,10 @@ Always fires (small, global):
 
 | Probe |
 | --- |
-| `www.bing.com/favicon.ico` |
+| `www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1` |
 | `www.apple.com/favicon.ico` |
 | `www.apple.com/library/test/success.html` — the same endpoint iOS/macOS uses for its own captive-portal / internet check |
-| `app-site-association.cdn-apple.com/a/v1/apple.com` |
 | `yandex.com/favicon.ico` — not gated to Russian timezones since Yandex (Maps, Browser, Taxi) has real usage in Turkiye and elsewhere too |
-| `yandex.com/internet/` — Yandex's own network diagnostic page |
-| `www.cloudflare.com/favicon.ico` — major CDN operator with edge presence worldwide |
 | `api.cloudflare.com/cdn-cgi/trace` — Cloudflare's own recommended connectivity-diagnostic endpoint |
 | `www.akamai.com/favicon.ico` — major CDN operator with edge presence worldwide |
 
@@ -164,8 +161,8 @@ By default (`autoRegion: true`), the region-specific probes above only fire
 when `Intl.DateTimeFormat().resolvedOptions().timeZone` matches that region
 (e.g. `Asia/Shanghai` → Baidu/Alibaba, `Europe/Moscow` → VK, `Asia/Tehran` →
 Aparat/Digikala, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
-only ever fires the 9 global probes (Bing, Apple ×2, Apple CDN, Yandex ×2,
-Cloudflare ×2, Akamai).
+only ever fires the 6 global probes (Bing, Apple ×2, Yandex, Cloudflare,
+Akamai).
 
 This is a latency/traffic optimization, not a correctness requirement — a
 mismatched timezone (VPN, misconfigured system clock) just means the

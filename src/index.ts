@@ -72,13 +72,10 @@ interface NavigatorWithConnection extends Navigator {
 }
 
 const GLOBAL_PROBES = [
-  "https://www.bing.com/favicon.ico",
+  "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1",
   "https://www.apple.com/favicon.ico",
   "https://www.apple.com/library/test/success.html",
-  "https://app-site-association.cdn-apple.com/a/v1/apple.com",
   "https://yandex.com/favicon.ico",
-  "https://yandex.com/internet/",
-  "https://www.cloudflare.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://www.akamai.com/favicon.ico"
 ] as const;

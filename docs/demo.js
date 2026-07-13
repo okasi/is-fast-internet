@@ -2,13 +2,10 @@ const LATENCY_THRESHOLD = 589;
 const SCAN_TIMEOUT = LATENCY_THRESHOLD * 3;
 
 const GLOBAL_PROBES = [
-  "https://www.bing.com/favicon.ico",
+  "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1",
   "https://www.apple.com/favicon.ico",
   "https://www.apple.com/library/test/success.html",
-  "https://app-site-association.cdn-apple.com/a/v1/apple.com",
   "https://yandex.com/favicon.ico",
-  "https://yandex.com/internet/",
-  "https://www.cloudflare.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://www.akamai.com/favicon.ico"
 ];
@@ -140,19 +137,17 @@ function renderProbeLedger(records = probeRecords) {
   [...records].sort(compareProbes).forEach((probe, index) => {
     const row = document.createElement("li");
     const number = document.createElement("span");
-    const address = document.createElement("span");
-    const host = document.createElement("span");
-    const path = document.createElement("span");
+    const address = document.createElement("a");
     const state = document.createElement("span");
 
     row.dataset.state = probe.state;
-    row.title = probe.url.href;
     number.className = "probe-index";
     number.textContent = String(index + 1).padStart(2, "0");
     address.className = "probe-address";
-    host.textContent = probe.url.hostname;
-    path.className = "probe-path";
-    path.textContent = `${probe.url.pathname}${probe.url.search}`;
+    address.href = probe.url.href;
+    address.target = "_blank";
+    address.rel = "noreferrer";
+    address.textContent = probe.url.href;
     state.className = "probe-state";
     state.textContent = probe.state === "responded"
       ? `${Math.round(probe.latency)}ms`
@@ -162,7 +157,6 @@ function renderProbeLedger(records = probeRecords) {
           ? "timed out"
         : probe.state;
 
-    address.append(host, " ", path);
     row.append(number, address, state);
     fragment.append(row);
   });
