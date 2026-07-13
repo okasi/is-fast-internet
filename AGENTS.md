@@ -10,3 +10,15 @@ Before pushing a package change to `main`:
 4. Verify the release with `npm view is-fast-internet@<version> --registry=https://registry.npmjs.org/`; do not consider it complete until npm serves the new version.
 
 Do not publish commits from branches other than `main`.
+
+## Demo synchronization
+
+`docs/demo.js` must derive the package probe list from the built
+`getDefaultProbes()` export. Do not reintroduce a copied default-probe list in
+the demo.
+
+After pushing any change that can affect the demo or its probe set, wait for
+the GitHub Pages workflow to succeed, then verify the deployed assets with
+cache-busted requests. Compare the SHA-256 hashes of the live
+`demo.js` and `is-fast-internet.js` with local `docs/demo.js` and
+`dist/index.js`; do not consider the demo deployment complete until both match.

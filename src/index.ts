@@ -88,7 +88,6 @@ const GLOBAL_PROBES = [
   "https://1.1.1.1/cdn-cgi/trace",
   "https://www.akamai.com/favicon.ico",
   "https://whatismyip.akamai.com/advanced?debug",
-  "https://whatismyip.akamai.com/advanced",
   "https://checkip.global.api.aws/",
   "https://checkip.amazonaws.com/",
   "https://detectportal.firefox.com/canonical.html",
@@ -101,11 +100,8 @@ const GLOBAL_PROBES = [
   "https://api.ipify.org?format=json",
   "https://ifconfig.co/json",
   "https://ifconfig.io",
-  "https://api.myip.com/",
   "https://captive.apple.com/hotspot-detect.html",
   "https://get.geojs.io/v1/ip/geo.json",
-  "https://reallyfreegeoip.org/json/",
-  "https://api.seeip.org/geoip"
 ] as const;
 
 const REGION_PROBES: RegionProbeGroup[] = [

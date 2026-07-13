@@ -115,9 +115,9 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
   const active = getDefaultProbes();
   const all = getDefaultProbes({ autoRegion: false });
 
-  assert.strictEqual(active.length, 24);
+  assert.strictEqual(active.length, 20);
   assert.ok(active.every((probe) => probe.region === null));
-  assert.strictEqual(all.length, 30);
+  assert.strictEqual(all.length, 26);
   assert.deepStrictEqual(
     [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
     ["China", "Iran", "Russia / CIS", "Turkmenistan"]
