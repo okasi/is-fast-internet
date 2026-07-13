@@ -1,48 +1,11 @@
 const LATENCY_THRESHOLD = 589;
 const SCAN_TIMEOUT = LATENCY_THRESHOLD * 3;
+const modulePath = location.hostname.endsWith("github.io")
+  ? "./is-fast-internet.js"
+  : "../dist/index.js";
+const { getDefaultProbes } = await import(modulePath);
 
-const GLOBAL_PROBES = [
-  "https://www.bing.com/robots.txt",
-  "https://www.apple.com/favicon.ico",
-  "https://www.apple.com/library/test/success.html",
-  "https://yandex.com/favicon.ico",
-  "https://api.cloudflare.com/cdn-cgi/trace",
-  "https://1.1.1.1/cdn-cgi/trace",
-  "https://www.akamai.com/favicon.ico"
-];
-
-const REGION_PROBES = [
-  {
-    demoLabel: "China · normally geo-based",
-    probes: [
-      "https://www.baidu.com/favicon.ico",
-      "https://www.alibaba.com/favicon.ico"
-    ],
-    timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
-  },
-  {
-    probes: ["https://vk.com/favicon.ico", "https://dzen.ru/favicon.ico"],
-    timezones: [
-      "Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Europe/Volgograd",
-      "Europe/Saratov", "Europe/Kirov", "Europe/Ulyanovsk", "Europe/Astrakhan",
-      "Europe/Simferopol", "Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk",
-      "Asia/Barnaul", "Asia/Tomsk", "Asia/Novokuznetsk", "Asia/Krasnoyarsk",
-      "Asia/Irkutsk", "Asia/Chita", "Asia/Yakutsk", "Asia/Khandyga",
-      "Asia/Vladivostok", "Asia/Ust-Nera", "Asia/Magadan", "Asia/Sakhalin",
-      "Asia/Srednekolymsk", "Asia/Kamchatka", "Asia/Anadyr"
-    ]
-  },
-  {
-    demoLabel: "Iran · normally geo-based",
-    probes: ["https://www.aparat.com/favicon.ico"],
-    timezones: ["Asia/Tehran"]
-  },
-  {
-    demoLabel: "Turkmenistan · normally geo-based",
-    probes: ["https://turkmenportal.com/favicon.ico"],
-    timezones: ["Asia/Ashgabat"]
-  }
-];
+const DEMO_REGIONS = new Set(["China", "Iran", "Turkmenistan"]);
 
 const runButton = document.querySelector("#run-check");
 const consoleShell = document.querySelector("#console-shell");
@@ -75,22 +38,14 @@ let toastTimer = null;
 let probeRecords = [];
 
 function activeProbes() {
-  let timeZone = "";
+  const activeUrls = new Set(getDefaultProbes().map(({ url }) => url));
 
-  try {
-    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  } catch {
-    // Use the global probes when the browser cannot expose a time zone.
-  }
-
-  return [
-    ...GLOBAL_PROBES.map((url) => ({ url, demoLabel: null })),
-    ...REGION_PROBES.flatMap(({ probes, timezones, demoLabel }) => (
-      demoLabel || timezones.includes(timeZone)
-        ? probes.map((url) => ({ url, demoLabel: demoLabel ?? null }))
-        : []
-    ))
-  ];
+  return getDefaultProbes({ autoRegion: false })
+    .filter(({ url, region }) => activeUrls.has(url) || DEMO_REGIONS.has(region))
+    .map(({ url, region }) => ({
+      url,
+      demoLabel: DEMO_REGIONS.has(region) ? `${region} · normally geo-based` : null
+    }));
 }
 
 function cacheBustedUrl(url, index) {

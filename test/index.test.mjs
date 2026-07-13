@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const esmEntry = join(here, "..", "dist", "index.js");
 const cjsEntry = join(here, "..", "dist", "index.cjs");
 
-const { default: isFastInternet, checkInternet } = await import(esmEntry);
+const { default: isFastInternet, checkInternet, getDefaultProbes } = await import(esmEntry);
 
 // --- Test doubles -----------------------------------------------------------
 
@@ -69,7 +69,8 @@ test("every probe erroring settles false, early, before the timeout", async () =
       "bing", "apple.com/favicon", "success.html",
       "yandex.com/favicon",
       "cdn-cgi/trace", "akamai", "baidu", "alibaba", "vk", "dzen",
-      "aparat", "turkmen"
+      "aparat", "turkmen", "checkip.global.api.aws", "checkip.amazonaws",
+      "detectportal.firefox", "msftconnecttest", "edge.microsoft"
     ].map((k) => [k, { error: true, delay: 20 }])
   );
   const t0 = Date.now();
@@ -109,8 +110,24 @@ test("CJS build behaves identically", async () => {
   const cjs = createRequire(import.meta.url)(cjsEntry);
   assert.strictEqual(typeof cjs, "function", "require() returns the function directly");
   assert.strictEqual(typeof cjs.checkInternet, "function", "named APIs remain available");
+  assert.strictEqual(typeof cjs.getDefaultProbes, "function", "probe metadata is available to CommonJS");
   behavior = { baidu: { delay: 50 } };
   assert.strictEqual(await new Promise((r) => cjs(r, { autoRegion: false })), true);
+});
+
+test("getDefaultProbes exposes active and region-gated defaults", () => {
+  const restore = stubTimeZone("America/New_York");
+  const active = getDefaultProbes();
+  const all = getDefaultProbes({ autoRegion: false });
+
+  assert.strictEqual(active.length, 13);
+  assert.ok(active.every((probe) => probe.region === null));
+  assert.strictEqual(all.length, 19);
+  assert.deepStrictEqual(
+    [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
+    ["China", "Iran", "Russia / CIS", "Turkmenistan"]
+  );
+  restore();
 });
 
 test("autoRegion skips region probes for a non-matching timezone", async () => {
@@ -170,9 +187,13 @@ test("VK stays Russia-region-gated (does not fire for Turkiye)", async () => {
   restore();
 });
 
-test("Cloudflare trace endpoints and Akamai fire as part of the global set", async () => {
+test("Cloudflare, Akamai, AWS, Firefox, and Microsoft probes fire globally", async () => {
   const restore = stubTimeZone("America/Chicago");
-  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "akamai"]) {
+  for (const key of [
+    "api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace",
+    "www.akamai.com/favicon", "whatismyip.akamai.com", "checkip.global.api.aws",
+    "checkip.amazonaws", "detectportal.firefox", "msftconnecttest", "edge.microsoft"
+  ]) {
     behavior = { [key]: { delay: 20 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should fire globally`);
   }

@@ -55,7 +55,17 @@ export interface IsFastInternetOptions {
   fetch?: FetchImplementation;
 }
 
+export type DefaultProbeRegion = "China" | "Russia / CIS" | "Iran" | "Turkmenistan";
+
+export interface DefaultProbe {
+  /** Probe URL, without the per-request cache-busting parameter. */
+  url: string;
+  /** Region that normally gates this probe, or null for global probes. */
+  region: DefaultProbeRegion | null;
+}
+
 interface RegionProbeGroup {
+  region: DefaultProbeRegion;
   probes: string[];
   timezones: string[];
 }
@@ -78,11 +88,18 @@ const GLOBAL_PROBES = [
   "https://yandex.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://1.1.1.1/cdn-cgi/trace",
-  "https://www.akamai.com/favicon.ico"
+  "https://www.akamai.com/favicon.ico",
+  "https://whatismyip.akamai.com/advanced?debug",
+  "https://checkip.global.api.aws/",
+  "https://checkip.amazonaws.com/",
+  "http://detectportal.firefox.com/canonical.html",
+  "https://www.msftconnecttest.com/connecttest.txt",
+  "https://edge.microsoft.com/captiveportal/generate_204"
 ] as const;
 
 const REGION_PROBES: RegionProbeGroup[] = [
   {
+    region: "China",
     probes: [
       "https://www.baidu.com/favicon.ico",
       "https://www.alibaba.com/favicon.ico"
@@ -90,6 +107,7 @@ const REGION_PROBES: RegionProbeGroup[] = [
     timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
   },
   {
+    region: "Russia / CIS",
     probes: ["https://vk.com/favicon.ico", "https://dzen.ru/favicon.ico"],
     timezones: [
       "Europe/Moscow", "Europe/Kaliningrad", "Europe/Samara", "Europe/Volgograd",
@@ -102,10 +120,12 @@ const REGION_PROBES: RegionProbeGroup[] = [
     ]
   },
   {
+    region: "Iran",
     probes: ["https://www.aparat.com/favicon.ico"],
     timezones: ["Asia/Tehran"]
   },
   {
+    region: "Turkmenistan",
     probes: ["https://turkmenportal.com/favicon.ico"],
     timezones: ["Asia/Ashgabat"]
   }
@@ -119,15 +139,27 @@ function detectTimeZone(): string {
   }
 }
 
-function buildDefaultProbes(autoRegion: boolean): string[] {
-  const probes: string[] = [...GLOBAL_PROBES];
+/**
+ * Return the default probes active for this browser, including their normal
+ * region gate. Pass `{ autoRegion: false }` to list every default probe.
+ */
+export function getDefaultProbes(
+  { autoRegion = true }: Pick<IsFastInternetOptions, "autoRegion"> = {}
+): DefaultProbe[] {
+  const probes: DefaultProbe[] = GLOBAL_PROBES.map((url) => ({ url, region: null }));
   const timezone = autoRegion ? detectTimeZone() : null;
 
   for (const region of REGION_PROBES) {
-    if (timezone === null || region.timezones.includes(timezone)) probes.push(...region.probes);
+    if (timezone === null || region.timezones.includes(timezone)) {
+      probes.push(...region.probes.map((url) => ({ url, region: region.region })));
+    }
   }
 
   return probes;
+}
+
+function buildDefaultProbes(autoRegion: boolean): string[] {
+  return getDefaultProbes({ autoRegion }).map(({ url }) => url);
 }
 
 interface ConnectionInfo {
