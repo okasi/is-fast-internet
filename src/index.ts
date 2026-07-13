@@ -82,7 +82,6 @@ interface NavigatorWithConnection extends Navigator {
 }
 
 const GLOBAL_PROBES = [
-  "https://www.apple.com/library/test/success.html",
   "https://yandex.com/favicon.ico",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://1.1.1.1/cdn-cgi/trace",
@@ -109,7 +108,12 @@ const REGION_PROBES: RegionProbeGroup[] = [
     region: "China",
     probes: [
       "https://www.baidu.com/favicon.ico",
-      "https://www.alibaba.com/favicon.ico"
+      "https://www.baidu.com/robots.txt",
+      "https://www.alibaba.com/favicon.ico",
+      "https://s.alicdn.com/@g/ife/common-icon/0.0.1/icon/favicon-v1.ico",
+      "https://s.alicdn.com/@xconfig/callapp/renderCallAppVersion",
+      "https://s.alicdn.com/@xconfig/m_header/renderVersion",
+      "https://www.alibaba.com/atlassitemapsitenet/static/www_alibaba_com/robots.txt"
     ],
     timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
   },

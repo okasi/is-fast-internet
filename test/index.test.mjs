@@ -81,7 +81,7 @@ test("all probes hanging triggers the early-exit timeout at ~3x threshold", asyn
 });
 
 test("callback fires exactly once even when many probes resolve", async () => {
-  behavior = { "success.html": { delay: 10 }, baidu: { delay: 15 }, "yandex.com/favicon": { delay: 20 } };
+  behavior = { "yandex.com/favicon": { delay: 10 }, baidu: { delay: 15 } };
   let calls = 0;
   isFastInternet(() => calls++, { autoRegion: false });
   await new Promise((r) => setTimeout(r, 200));
@@ -115,12 +115,24 @@ test("getDefaultProbes exposes active and region-gated defaults", () => {
   const active = getDefaultProbes();
   const all = getDefaultProbes({ autoRegion: false });
 
-  assert.strictEqual(active.length, 20);
+  assert.strictEqual(active.length, 19);
   assert.ok(active.every((probe) => probe.region === null));
-  assert.strictEqual(all.length, 26);
+  assert.strictEqual(all.length, 30);
   assert.deepStrictEqual(
     [...new Set(all.map((probe) => probe.region).filter(Boolean))].sort(),
     ["China", "Iran", "Russia / CIS", "Turkmenistan"]
+  );
+  assert.deepStrictEqual(
+    all.filter((probe) => probe.region === "China").map((probe) => probe.url),
+    [
+      "https://www.baidu.com/favicon.ico",
+      "https://www.baidu.com/robots.txt",
+      "https://www.alibaba.com/favicon.ico",
+      "https://s.alicdn.com/@g/ife/common-icon/0.0.1/icon/favicon-v1.ico",
+      "https://s.alicdn.com/@xconfig/callapp/renderCallAppVersion",
+      "https://s.alicdn.com/@xconfig/m_header/renderVersion",
+      "https://www.alibaba.com/atlassitemapsitenet/static/www_alibaba_com/robots.txt"
+    ]
   );
   restore();
 });
@@ -140,7 +152,7 @@ test("autoRegion adds the region probe for a matching timezone", async () => {
 });
 
 test("info.latency reflects the winning probe's round-trip time", async () => {
-  behavior = { "success.html": { delay: 40 } };
+  behavior = { "yandex.com/favicon": { delay: 40 } };
   const { fast, info } = await runFull({ threshold: 100 });
   assert.strictEqual(fast, true);
   assert.ok(Math.abs(info.latency - 40) <= 15);
@@ -148,7 +160,7 @@ test("info.latency reflects the winning probe's round-trip time", async () => {
 
 test("info reads downlinkMbps/effectiveType from navigator.connection", async () => {
   stubNavigator({ connection: { downlink: 12.5, effectiveType: "4g" } });
-  behavior = { "success.html": { delay: 10 } };
+  behavior = { "yandex.com/favicon": { delay: 10 } };
   const { info } = await runFull({ threshold: 100 });
   assert.strictEqual(info.downlinkMbps, 12.5);
   assert.strictEqual(info.effectiveType, "4g");
@@ -156,14 +168,14 @@ test("info reads downlinkMbps/effectiveType from navigator.connection", async ()
 
 test("downlinkMbps is null when the Network Information API is unavailable", async () => {
   stubNavigator({});
-  behavior = { "success.html": { delay: 10 } };
+  behavior = { "yandex.com/favicon": { delay: 10 } };
   const { info } = await runFull({ threshold: 100 });
   assert.strictEqual(info.downlinkMbps, null);
 });
 
 test("minDownlinkMbps gates 'fast' even when latency is within threshold", async () => {
   stubNavigator({ connection: { downlink: 1.5, effectiveType: "3g" } });
-  behavior = { "success.html": { delay: 10 } };
+  behavior = { "yandex.com/favicon": { delay: 10 } };
   const { fast } = await runFull({ threshold: 100, minDownlinkMbps: 5 });
   assert.strictEqual(fast, false);
 });
@@ -205,8 +217,8 @@ test("Dzen does not fire for a non-Russia timezone", async () => {
   restore();
 });
 
-test("non-image endpoints (text/HTML) work as probes via fetch(no-cors)", async () => {
-  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "success.html", "httpbin.org/headers"]) {
+test("non-image endpoints (text/JSON) work as probes via fetch(no-cors)", async () => {
+  for (const key of ["api.cloudflare.com/cdn-cgi/trace", "1.1.1.1/cdn-cgi/trace", "tls.peet.ws/api/clean", "httpbin.org/headers"]) {
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }
