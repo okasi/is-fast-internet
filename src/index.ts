@@ -72,7 +72,7 @@ interface NavigatorWithConnection extends Navigator {
 }
 
 const GLOBAL_PROBES = [
-  "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1",
+  "https://www.bing.com/robots.txt",
   "https://www.apple.com/favicon.ico",
   "https://www.apple.com/library/test/success.html",
   "https://yandex.com/favicon.ico",
@@ -84,8 +84,7 @@ const REGION_PROBES: RegionProbeGroup[] = [
   {
     probes: [
       "https://www.baidu.com/favicon.ico",
-      "https://www.alibaba.com/favicon.ico",
-      "https://www.alibabacloud.com/favicon.ico"
+      "https://www.alibaba.com/favicon.ico"
     ],
     timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
   },
@@ -102,7 +101,7 @@ const REGION_PROBES: RegionProbeGroup[] = [
     ]
   },
   {
-    probes: ["https://www.aparat.com/favicon.ico", "https://www.digikala.com/favicon.ico"],
+    probes: ["https://www.aparat.com/favicon.ico"],
     timezones: ["Asia/Tehran"]
   },
   {

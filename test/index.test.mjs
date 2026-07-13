@@ -69,7 +69,7 @@ test("every probe erroring settles false, early, before the timeout", async () =
       "bing", "apple.com/favicon", "success.html",
       "yandex.com/favicon",
       "cdn-cgi/trace", "akamai", "baidu", "alibaba", "vk", "dzen",
-      "aparat", "digikala", "turkmen"
+      "aparat", "turkmen"
     ].map((k) => [k, { error: true, delay: 20 }])
   );
   const t0 = Date.now();
@@ -191,8 +191,8 @@ test("Dzen does not fire for a non-Russia timezone", async () => {
   restore();
 });
 
-test("non-image endpoints (text/HTML/JSON) work as probes via fetch(no-cors)", async () => {
-  for (const key of ["cdn-cgi/trace", "success.html", "bing.com/HPImageArchive"]) {
+test("non-image endpoints (text/HTML) work as probes via fetch(no-cors)", async () => {
+  for (const key of ["cdn-cgi/trace", "success.html", "bing.com/robots.txt"]) {
     behavior = { [key]: { delay: 15 } };
     assert.strictEqual(await run({ threshold: 100 }), true, `${key} should be able to win the race`);
   }

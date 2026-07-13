@@ -10,7 +10,7 @@ It races tiny probes against the world's smartest geo-diverse domains. Whichever
 
 - ⚡ **Blazing detection** — sub-threshold latency wins in milliseconds
 - 🧠 **Region-smart** — only fires Baidu/Alibaba in China timezones, VK in Russia, etc. (saves requests + stays stealthy)
-- 🗺️ **6 global + 8 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai + local heroes
+- 🗺️ **6 global + 6 regional probes** — Bing, Apple, Yandex, Cloudflare, Akamai + local heroes
 - 📡 **Free bandwidth bonus** — reads real `downlinkMbps` + `effectiveType` from the browser when available
 - 🪶 **Zero dependencies**, pure `fetch`, works in any modern browser
 - 🧭 **Actionable diagnostics** — know whether latency, bandwidth, timeout, cancellation, or reachability decided the result
@@ -124,7 +124,7 @@ Always fires (small, global):
 
 | Probe |
 | --- |
-| `www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1` |
+| `www.bing.com/robots.txt` |
 | `www.apple.com/favicon.ico` |
 | `www.apple.com/library/test/success.html` — the same endpoint iOS/macOS uses for its own captive-portal / internet check |
 | `yandex.com/favicon.ico` — not gated to Russian timezones since Yandex (Maps, Browser, Taxi) has real usage in Turkiye and elsewhere too |
@@ -135,9 +135,9 @@ Fires only when the browser's timezone matches (see [Region detection](#region-d
 
 | Region | Probe |
 | --- | --- |
-| China | `www.baidu.com/favicon.ico`, `www.alibaba.com/favicon.ico`, `www.alibabacloud.com/favicon.ico` |
+| China | `www.baidu.com/favicon.ico`, `www.alibaba.com/favicon.ico` |
 | Russia / CIS | `vk.com/favicon.ico`, `dzen.ru/favicon.ico` |
-| Iran | `www.aparat.com/favicon.ico`, `www.digikala.com/favicon.ico` |
+| Iran | `www.aparat.com/favicon.ico` |
 | Turkmenistan | `turkmenportal.com/favicon.ico` |
 
 All active probes fire in parallel with a cache-busting query string, via
@@ -160,7 +160,7 @@ remaining requests are aborted.
 By default (`autoRegion: true`), the region-specific probes above only fire
 when `Intl.DateTimeFormat().resolvedOptions().timeZone` matches that region
 (e.g. `Asia/Shanghai` → Baidu/Alibaba, `Europe/Moscow` → VK, `Asia/Tehran` →
-Aparat/Digikala, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
+Aparat, `Asia/Ashgabat` → Turkmenportal). A visitor anywhere else
 only ever fires the 6 global probes (Bing, Apple ×2, Yandex, Cloudflare,
 Akamai).
 
