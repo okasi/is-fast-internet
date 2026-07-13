@@ -83,10 +83,8 @@ interface NavigatorWithConnection extends Navigator {
 
 const GLOBAL_PROBES = [
   "https://yandex.com/favicon.ico",
-  "https://yandex.com/robots.txt",
   "https://api.cloudflare.com/cdn-cgi/trace",
   "https://1.1.1.1/cdn-cgi/trace",
-  "https://www.akamai.com/favicon.ico",
   "https://whatismyip.akamai.com/advanced?debug",
   "https://checkip.global.api.aws/",
   "https://checkip.amazonaws.com/",
@@ -109,9 +107,7 @@ const REGION_PROBES: RegionProbeGroup[] = [
     region: "China",
     probes: [
       "https://www.baidu.com/favicon.ico",
-      "https://www.baidu.com/robots.txt",
       "https://www.alibaba.com/favicon.ico",
-      "https://www.alibaba.com/atlassitemapsitenet/static/www_alibaba_com/robots.txt"
     ],
     timezones: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Hong_Kong", "Asia/Macau"]
   },
